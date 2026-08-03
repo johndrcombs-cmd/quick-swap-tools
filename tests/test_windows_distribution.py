@@ -19,6 +19,15 @@ WINDOWS_CONFIG = ROOT / "build" / "windows" / "quick-swap-config.exe"
 WINDOWS_RUNNER = [] if os.name == "nt" else ["wine"]
 
 
+def mingw_tool(name: str) -> str:
+    candidates = [f"x86_64-w64-mingw32-{name}", name]
+    return next((candidate for candidate in candidates if shutil.which(candidate)), candidates[0])
+
+
+WINDOWS_OBJDUMP = mingw_tool("objdump")
+WINDOWS_STRINGS = mingw_tool("strings")
+
+
 @unittest.skipUnless(WINDOWS_BINARY.is_file(), "Windows host has not been built")
 class WindowsHotkeyValidationTests(unittest.TestCase):
     def run_validate(self, auction: str, giveaway: str):
@@ -191,7 +200,7 @@ class WindowsNativeHostTests(unittest.TestCase):
 
     def test_host_uses_windows_subsystem_without_console_flash(self):
         headers = subprocess.run(
-            ["x86_64-w64-mingw32-objdump", "-p", str(WINDOWS_BINARY)],
+            [WINDOWS_OBJDUMP, "-p", str(WINDOWS_BINARY)],
             check=True,
             capture_output=True,
             text=True,
@@ -452,7 +461,7 @@ class WindowsConfiguratorTests(unittest.TestCase):
     def test_configurator_is_graphical_and_discoverably_labels_both_actions(self):
         self.assertTrue(WINDOWS_CONFIG.is_file())
         strings = subprocess.run(
-            ["x86_64-w64-mingw32-strings", "-el", str(WINDOWS_CONFIG)],
+            [WINDOWS_STRINGS, "-el", str(WINDOWS_CONFIG)],
             check=True,
             capture_output=True,
             text=True,
@@ -487,20 +496,29 @@ class WindowsInstallerPolicyTests(unittest.TestCase):
         installer = (ROOT / "packaging" / "windows" / "install.ps1").read_text()
         self.assertIn("RegRenameKey", installer)
         self.assertIn("$RegistryStagingName", installer)
+        self.assertIn("$ParentKey.Handle.DangerousGetHandle()", installer)
         self.assertNotIn("New-Item -Path $RegistryPath -Force", installer)
 
     def test_installer_rollback_proves_published_files_and_full_shortcut(self):
         installer = (ROOT / "packaging" / "windows" / "install.ps1").read_text()
         self.assertIn("$PublishedHashes", installer)
         self.assertIn("Get-FileHash", installer)
+        self.assertIn("$RollbackShortcut.TargetPath", installer)
         self.assertIn("$RollbackShortcut.WorkingDirectory", installer)
         self.assertIn("$RollbackShortcut.Description", installer)
         self.assertIn("$RollbackShortcut.Arguments", installer)
+        self.assertIn("$RollbackShortcut.Hotkey", installer)
+        self.assertIn("$RollbackShortcut.WindowStyle", installer)
         self.assertNotIn(
             "Remove-Item -LiteralPath $InstallRoot -Recurse", installer
         )
         self.assertIn("$TemporaryShortcutPath", installer)
         self.assertIn("[IO.File]::Move($TemporaryShortcutPath, $ShortcutPath)", installer)
+
+    def test_installer_does_not_configure_or_require_an_empty_shortcut_icon(self):
+        installer = (ROOT / "packaging" / "windows" / "install.ps1").read_text()
+        self.assertNotIn('$Shortcut.IconLocation = ""', installer)
+        self.assertNotIn("$RollbackShortcut.IconLocation", installer)
 
     def test_unsigned_bypass_rejects_broken_signatures_and_production_is_pinned(self):
         installer = (ROOT / "packaging" / "windows" / "install.ps1").read_text()
@@ -536,25 +554,67 @@ class WindowsInstallerPolicyTests(unittest.TestCase):
         self.assertNotIn("Remove-Item -LiteralPath $SettingsPath -Recurse", uninstaller)
         self.assertIn("AuctionModifiers", uninstaller)
         self.assertIn("GiveawayVirtualKey", uninstaller)
+        self.assertIn("$Shortcut.WorkingDirectory", uninstaller)
+        self.assertIn("$Shortcut.Description", uninstaller)
+        self.assertIn("$Shortcut.Arguments", uninstaller)
+        self.assertIn("$Shortcut.Hotkey", uninstaller)
+        self.assertIn("$Shortcut.WindowStyle", uninstaller)
+        self.assertNotIn("$Shortcut.IconLocation", uninstaller)
+        self.assertIn('Get-Process -Name "quick-swap-tools"', uninstaller)
+        self.assertNotIn("Get-CimInstance", uninstaller)
+        self.assertIn("[string]::IsNullOrEmpty($ProcessPath)", uninstaller)
 
     def test_development_bundle_contains_friend_installation_payload(self):
-        if shutil.which("x86_64-w64-mingw32-g++") is None or shutil.which("zip") is None:
-            self.skipTest("Windows cross-compiler and zip are required")
+        compiler = "x86_64-w64-mingw32-g++"
+        if shutil.which(compiler) is None and os.name == "nt":
+            compiler = "g++"
+        if shutil.which(compiler) is None:
+            self.skipTest("a MinGW-w64 compiler is required")
+        bash = shutil.which("bash")
+        if os.name == "nt":
+            for candidate in (
+                Path(os.environ.get("ProgramFiles", "")) / "Git" / "bin" / "bash.exe",
+                Path(os.environ.get("LOCALAPPDATA", ""))
+                / "Programs"
+                / "Git"
+                / "bin"
+                / "bash.exe",
+            ):
+                if candidate.is_file():
+                    bash = str(candidate)
+                    break
+        if bash is None:
+            self.skipTest("bash is required")
         with tempfile.TemporaryDirectory() as temporary:
-            result = subprocess.run(
-                [
-                    "bash",
-                    str(ROOT / "scripts" / "build-windows-bundle.sh"),
-                    "9.9.9-test",
-                    temporary,
-                ],
+            command = [
+                bash,
+                str(ROOT / "scripts" / "build-windows-bundle.sh"),
+                "9.9.9-test",
+                temporary,
+            ]
+            build_environment = {**os.environ, "CXX_WINDOWS": compiler}
+            subprocess.run(
+                command,
                 check=True,
                 capture_output=True,
                 text=True,
+                env=build_environment,
             )
-            archive = Path(result.stdout.strip().splitlines()[-1])
+            archive = Path(temporary) / (
+                "quick-swap-tools-9.9.9-test-windows-x86_64-development.zip"
+            )
             self.assertTrue(archive.is_file())
+            first_archive = archive.read_bytes()
             with zipfile.ZipFile(archive) as bundle:
+                entries = bundle.infolist()
+                self.assertEqual(
+                    [entry.filename for entry in entries],
+                    sorted(entry.filename for entry in entries),
+                )
+                for entry in entries:
+                    self.assertEqual(entry.date_time, (1980, 1, 1, 0, 0, 0))
+                    expected_mode = 0o755 if entry.filename.endswith(".exe") else 0o644
+                    self.assertEqual((entry.external_attr >> 16) & 0o777, expected_mode)
                 names = set(bundle.namelist())
                 xpis = [name for name in names if name.endswith("-firefox.xpi")]
                 self.assertEqual(len(xpis), 1)
@@ -585,6 +645,29 @@ class WindowsInstallerPolicyTests(unittest.TestCase):
                     io.BytesIO(bundle.read(xpis[0]))
                 ) as xpi:
                     self.assertIn("META-INF/mozilla.rsa", xpi.namelist())
+            subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=build_environment,
+            )
+            self.assertEqual(archive.read_bytes(), first_archive)
+
+    def test_windows_bundle_builder_uses_available_python_without_external_zip(self):
+        builder = (ROOT / "scripts" / "build-windows-bundle.sh").read_text()
+        self.assertIn("for Candidate in python3 python", builder)
+        self.assertIn('command -v "$Candidate"', builder)
+        self.assertIn('"$Candidate" -c', builder)
+        self.assertNotIn("command -v zip", builder)
+        self.assertNotIn("command -v sha256sum", builder)
+        self.assertNotRegex(builder, r"(?m)^\s*zip\s")
+        self.assertIn("hashlib.sha256", builder)
+        self.assertIn("zipfile.ZipFile", builder)
+
+    def test_windows_build_omits_nondeterministic_pe_timestamp(self):
+        builder = (ROOT / "scripts" / "build-windows.sh").read_text()
+        self.assertIn("-Wl,--no-insert-timestamp", builder)
 
 
 if __name__ == "__main__":

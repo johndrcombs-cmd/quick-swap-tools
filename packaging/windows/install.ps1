@@ -274,7 +274,6 @@ try {
     $Shortcut.WorkingDirectory = $InstallRoot
     $Shortcut.Description = $ExpectedShortcutDescription
     $Shortcut.Arguments = ""
-    $Shortcut.IconLocation = ""
     $Shortcut.Hotkey = ""
     $Shortcut.WindowStyle = 1
     $Shortcut.Save()
@@ -292,7 +291,7 @@ try {
     }
     try {
         $RenameStatus = [QuickSwapRegistryNative]::RegRenameKey(
-            $ParentKey.Handle,
+            $ParentKey.Handle.DangerousGetHandle(),
             $RegistryStagingName,
             $HostName
         )
@@ -323,7 +322,6 @@ try {
             $RollbackShortcut.WorkingDirectory -eq $InstallRoot -and
             $RollbackShortcut.Description -eq $ExpectedShortcutDescription -and
             [string]::IsNullOrEmpty($RollbackShortcut.Arguments) -and
-            [string]::IsNullOrEmpty($RollbackShortcut.IconLocation) -and
             [string]::IsNullOrEmpty($RollbackShortcut.Hotkey) -and
             $RollbackShortcut.WindowStyle -eq 1) {
             Remove-Item -LiteralPath $ShortcutPath -Force -ErrorAction SilentlyContinue

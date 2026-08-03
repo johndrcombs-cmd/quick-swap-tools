@@ -10,6 +10,7 @@ $InstallRoot = $PSScriptRoot
 $ExpectedInstallRoot = Join-Path $env:LOCALAPPDATA "Programs\Quick Swap Tools"
 $ExpectedHost = Join-Path $InstallRoot "quick-swap-tools.exe"
 $ExpectedConfig = Join-Path $InstallRoot "quick-swap-config.exe"
+$ExpectedShortcutDescription = "Configure Quick Swap Tools auction and giveaway controls"
 $ManifestPath = Join-Path $InstallRoot "$HostName.json"
 $OwnerPath = Join-Path $InstallRoot "install-owner.json"
 $RegistryPath = "HKCU:\Software\Mozilla\NativeMessagingHosts\$HostName"
@@ -116,15 +117,33 @@ if (Test-Path -LiteralPath $RegistryPath) {
 if (Test-Path -LiteralPath $ShortcutPath) {
     $Shell = New-Object -ComObject WScript.Shell
     $Shortcut = $Shell.CreateShortcut($ShortcutPath)
-    if ($Shortcut.TargetPath -ne $ExpectedConfig) {
-        Refuse "the Start Menu shortcut points somewhere else"
+    if ($Shortcut.TargetPath -ne $ExpectedConfig -or
+        $Shortcut.WorkingDirectory -ne $InstallRoot -or
+        $Shortcut.Description -ne $ExpectedShortcutDescription -or
+        -not [string]::IsNullOrEmpty($Shortcut.Arguments) -or
+        -not [string]::IsNullOrEmpty($Shortcut.Hotkey) -or
+        $Shortcut.WindowStyle -ne 1) {
+        Refuse "the Start Menu shortcut properties do not match this installation"
     }
 }
 
-$RunningHost = Get-CimInstance Win32_Process -Filter "Name = 'quick-swap-tools.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.ExecutablePath -eq $ExpectedHost }
-if ($null -ne $RunningHost) {
-    Refuse "close Firefox before uninstalling so the native host can exit cleanly"
+$RunningHosts = @(Get-Process -Name "quick-swap-tools" -ErrorAction SilentlyContinue)
+foreach ($Process in $RunningHosts) {
+    try {
+        $ProcessPath = $Process.Path
+    }
+    catch {
+        Refuse "a running Quick Swap Tools process could not be verified"
+    }
+    if ([string]::IsNullOrEmpty($ProcessPath)) {
+        Refuse "a running Quick Swap Tools process could not be verified"
+    }
+    if ([string]::Equals(
+            $ProcessPath,
+            $ExpectedHost,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        Refuse "close Firefox before uninstalling so the native host can exit cleanly"
+    }
 }
 
 if (Test-Path -LiteralPath $RegistryPath) {

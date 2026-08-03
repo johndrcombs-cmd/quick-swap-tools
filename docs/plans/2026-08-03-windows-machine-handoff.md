@@ -10,7 +10,9 @@
 
 **Expected starting commit:** `af73cbed867e2e9fdcf2f375f819102c6e7fda38`
 
-**Current status at handoff:** The source is committed and pushed. Standard CI passes. Native Windows CI builds and passes protocol/policy tests, but the real install/uninstall step currently fails while creating the Start Menu shortcut because WScript rejects `$Shortcut.IconLocation = ""`. No Windows release has been published.
+**Original status at handoff:** The source was committed and pushed. Standard CI passed. Native Windows CI built and passed protocol/policy tests, but the real install/uninstall step failed while creating the Start Menu shortcut because WScript rejected `$Shortcut.IconLocation = ""`.
+
+**Windows validation update (2026-08-03):** The empty-icon defect and subsequent Windows PowerShell 5.1 installer/uninstaller defects have been fixed and exercised on a real Windows machine. The applicable 37-test Windows suite, repeated install/uninstall, ownership-collision tests, tamper rejection, configurator hotkey transactions, signed-XPI acceptance, and deterministic development-bundle checks pass locally. The remaining public-release gates are Authenticode signing, Defender/SmartScreen, explicit Windows 11 and 150% DPI evidence, live Whatnot acceptance, and pushed final CI. No Windows release has been published.
 
 ---
 
@@ -34,7 +36,7 @@ keyboard/macro-pad -> RegisterHotKey -> resident Firefox native-messaging host -
 
 Preserve actions `auction` and `giveaway`, the 150 ms physical-bounce interval, the 1500 ms extension reconnect delay, command-ID duplicate suppression, per-user HKCU registration, no-admin installation, semantic DOM safety, and Firefox.
 
-First reproduce/fix the current shortcut creation failure caused by assigning an empty WScript IconLocation. Run the real installer/uninstaller using Windows PowerShell 5.1, not only PowerShell 7 parsing. Then run all native tests and the manual Firefox/Whatnot acceptance checklist. Keep a timestamped evidence log with commands, outputs, Windows version, Firefox version, screenshots, and failures.
+Confirm that the resolved empty-WScript-IconLocation regression remains covered. Run the real installer/uninstaller using Windows PowerShell 5.1, not only PowerShell 7 parsing. Then run all native tests and the manual Firefox/Whatnot acceptance checklist. Keep a timestamped evidence log with commands, outputs, Windows version, Firefox version, screenshots, and failures.
 
 Use only OpenAI Codex GPT-5.6 Sol at medium reasoning for agent work. Do not use Anthropic or other models.
 ```
@@ -146,7 +148,9 @@ The configurator also uses a named transaction mutex and reload synchronization 
 
 ---
 
-## 4. Known current failure — fix this first
+## 4. Historical shortcut failure — resolved
+
+The failure and TDD sequence below are retained as historical context. The invalid empty `IconLocation` assignment has been removed and regression-tested; do not reintroduce it.
 
 ### Evidence
 

@@ -14,6 +14,7 @@ COMMON_FLAGS=(
   -std=c++20 -O2 -s -Wall -Wextra -Wpedantic -Werror
   -DUNICODE -D_UNICODE
   -static -static-libgcc -static-libstdc++
+  -Wl,--no-insert-timestamp
 )
 
 "$CXX" "${COMMON_FLAGS[@]}" -mwindows -municode \

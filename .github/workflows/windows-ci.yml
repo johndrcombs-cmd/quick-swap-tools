@@ -35,13 +35,22 @@ jobs:
               exit 1
             }
           }
+      - name: Prepare pinned signed Firefox extension
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path dist/release -Force | Out-Null
+          $Xpi = "dist/release/Quick-Swap-Tools-0.1.0-firefox.xpi"
+          Invoke-WebRequest "https://github.com/johndrcombs-cmd/quick-swap-tools/releases/download/v0.1.0/Quick-Swap-Tools-0.1.0-firefox.xpi" -OutFile $Xpi
+          $ExpectedXpiHash = "47a718aca9ef77ea71b7cab842a44064051ccd76523ae5ab94d841cbcfe55bac"
+          if ((Get-FileHash $Xpi -Algorithm SHA256).Hash.ToLowerInvariant() -ne $ExpectedXpiHash) {
+            throw "The immutable v0.1.0 XPI hash did not match"
+          }
       - name: Run native Windows protocol and policy tests
         shell: powershell
         run: |
           $env:PATH = "C:\ProgramData\mingw64\mingw64\bin;$env:PATH"
           $env:QST_WINDOWS_RUNTIME_TESTS = "1"
-          python tests\test_windows_distribution.py WindowsHotkeyValidationTests WindowsNativeHostTests WindowsConfiguratorTests -v
-          python tests\test_windows_distribution.py WindowsInstallerPolicyTests.test_per_user_installer_has_closed_registration_and_signing_policy WindowsInstallerPolicyTests.test_installer_uses_collision_safe_registry_and_shortcut_publication WindowsInstallerPolicyTests.test_installer_rollback_proves_published_files_and_full_shortcut WindowsInstallerPolicyTests.test_unsigned_bypass_rejects_broken_signatures_and_production_is_pinned WindowsInstallerPolicyTests.test_installer_validates_xpi_identity_and_signature_metadata WindowsInstallerPolicyTests.test_installer_and_uninstaller_reject_unsafe_roots WindowsInstallerPolicyTests.test_uninstaller_proves_registry_and_manifest_ownership -v
+          python tests\test_windows_distribution.py WindowsHotkeyValidationTests WindowsNativeHostTests WindowsConfiguratorTests WindowsInstallerPolicyTests -v
       - name: Exercise per-user install and ownership-aware uninstall
         shell: powershell
         run: |
@@ -53,7 +62,7 @@ jobs:
           Copy-Item LICENSE -Destination $Bundle
           Copy-Item THIRD_PARTY_NOTICES.md -Destination $Bundle
           $Xpi = Join-Path $Bundle "Quick-Swap-Tools-0.1.0-firefox.xpi"
-          Invoke-WebRequest "https://github.com/johndrcombs-cmd/quick-swap-tools/releases/download/v0.1.0/Quick-Swap-Tools-0.1.0-firefox.xpi" -OutFile $Xpi
+          Copy-Item dist/release/Quick-Swap-Tools-0.1.0-firefox.xpi $Xpi
           $ExpectedXpiHash = "47a718aca9ef77ea71b7cab842a44064051ccd76523ae5ab94d841cbcfe55bac"
           if ((Get-FileHash $Xpi -Algorithm SHA256).Hash.ToLowerInvariant() -ne $ExpectedXpiHash) {
             throw "The immutable v0.1.0 XPI hash did not match"
