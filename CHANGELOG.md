@@ -4,6 +4,9 @@ All notable changes to Quick Swap Tools are documented here.
 
 ## Unreleased
 
+- Refresh the Windows and KDE desktop configurators with a shared modern,
+  dark-only layout, clearer action cards and status feedback, and visible
+  keyboard focus states.
 - Add device-filtered Logitech R400 support on Windows: Previous starts the next
   auction and Next starts the next giveaway without treating Page Up/Page Down
   from other keyboards as Quick Swap controls.

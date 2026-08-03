@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <dwmapi.h>
 #include <shellapi.h>
 
 #include <fcntl.h>
@@ -720,6 +721,20 @@ public:
     explicit Configurator(HINSTANCE instance)
         : instance_(instance) {}
 
+    ~Configurator() {
+        for (HGDIOBJ object : {
+                 reinterpret_cast<HGDIOBJ>(eyebrowFont_),
+                 reinterpret_cast<HGDIOBJ>(titleFont_),
+                 reinterpret_cast<HGDIOBJ>(bodyBoldFont_),
+                 reinterpret_cast<HGDIOBJ>(bodyFont_),
+                 reinterpret_cast<HGDIOBJ>(windowBackgroundBrush_),
+             }) {
+            if (object != nullptr) {
+                DeleteObject(object);
+            }
+        }
+    }
+
     int run() {
         const auto loaded = loadHotkeys();
         if (!loaded) {
@@ -731,13 +746,18 @@ public:
             return 2;
         }
         staged_ = *loaded;
+        if (!createThemeResources()) {
+            return 2;
+        }
 
         WNDCLASSW windowClass{};
         windowClass.lpfnWndProc = windowProcedure;
         windowClass.hInstance = instance_;
         windowClass.lpszClassName = L"OniBytsQuickSwapConfigurator";
         windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-        windowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+        // The configurator owns this brush; do not also register it as a
+        // class-owned background brush. WM_PAINT/WM_ERASEBKGND fill the window.
+        windowClass.hbrBackground = nullptr;
         if (RegisterClassW(&windowClass) == 0 && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
             return 2;
         }
@@ -749,8 +769,8 @@ public:
             WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
-            620,
-            410,
+            720,
+            550,
             nullptr,
             nullptr,
             instance_,
@@ -758,13 +778,18 @@ public:
         if (window_ == nullptr) {
             return 2;
         }
+        enableDarkTitleBar(window_);
         ShowWindow(window_, SW_SHOW);
         UpdateWindow(window_);
 
         MSG message{};
         while (GetMessageW(&message, nullptr, 0, 0) > 0) {
-            TranslateMessage(&message);
-            DispatchMessageW(&message);
+            // During shortcut capture, navigation keys must reach WM_KEYDOWN
+            // instead of being consumed by the dialog manager.
+            if (recordingAction_ != 0 || !IsDialogMessageW(window_, &message)) {
+                TranslateMessage(&message);
+                DispatchMessageW(&message);
+            }
         }
         return 0;
     }
@@ -775,6 +800,60 @@ private:
     static constexpr int kApplyButton = 201;
     static constexpr int kResetButton = 202;
     static constexpr int kCloseButton = 203;
+    static constexpr int kEyebrowLabel = 301;
+    static constexpr int kTitleLabel = 302;
+    static constexpr int kSubtitleLabel = 303;
+    static constexpr int kMutedLabel = 304;
+    static constexpr int kStatusLabel = 305;
+    static constexpr COLORREF kWindowBackground = RGB(11, 15, 20);
+    static constexpr COLORREF kSurfaceBackground = RGB(22, 27, 34);
+    static constexpr COLORREF kInputBackground = RGB(13, 17, 23);
+    static constexpr COLORREF kBorderColor = RGB(48, 54, 61);
+    static constexpr COLORREF kAccentColor = RGB(31, 111, 235);
+    static constexpr COLORREF kAccentHoverColor = RGB(56, 139, 253);
+    static constexpr COLORREF kPrimaryText = RGB(230, 237, 243);
+    static constexpr COLORREF kSecondaryText = RGB(139, 148, 158);
+
+    static HFONT makeFont(int pixels, int weight) {
+        return CreateFontW(
+            -pixels,
+            0,
+            0,
+            0,
+            weight,
+            FALSE,
+            FALSE,
+            FALSE,
+            DEFAULT_CHARSET,
+            OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE,
+            L"Segoe UI");
+    }
+
+    bool createThemeResources() {
+        windowBackgroundBrush_ = CreateSolidBrush(kWindowBackground);
+        bodyFont_ = makeFont(16, FW_NORMAL);
+        bodyBoldFont_ = makeFont(16, FW_SEMIBOLD);
+        titleFont_ = makeFont(30, FW_BOLD);
+        eyebrowFont_ = makeFont(12, FW_BOLD);
+        return windowBackgroundBrush_ != nullptr
+            && bodyFont_ != nullptr
+            && bodyBoldFont_ != nullptr
+            && titleFont_ != nullptr
+            && eyebrowFont_ != nullptr;
+    }
+
+    static void enableDarkTitleBar(HWND window) {
+        constexpr DWORD kImmersiveDarkModeAttribute = 20; // DWMWA_USE_IMMERSIVE_DARK_MODE
+        const BOOL enabled = TRUE;
+        DwmSetWindowAttribute(
+            window,
+            kImmersiveDarkModeAttribute,
+            &enabled,
+            sizeof(enabled));
+    }
 
     static LRESULT CALLBACK windowProcedure(
         HWND window,
@@ -802,7 +881,8 @@ private:
         int y,
         int width,
         int height,
-        int identifier = 0) {
+        int identifier = 0,
+        HFONT font = nullptr) {
         HWND control = CreateWindowExW(
             0,
             className,
@@ -819,7 +899,7 @@ private:
         SendMessageW(
             control,
             WM_SETFONT,
-            reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)),
+            reinterpret_cast<WPARAM>(font != nullptr ? font : bodyFont_),
             TRUE);
         return control;
     }
@@ -827,43 +907,162 @@ private:
     void createControls() {
         createControl(
             L"STATIC",
-            L"Click a binding, press a keyboard or macro-pad key, then Apply. F13–F24 are recommended for Tartarus-style devices.",
+            L"QUICK SWAP TOOLS",
             SS_LEFT,
-            24,
+            28,
             22,
-            560,
-            44);
-        createControl(L"STATIC", L"Next auction", SS_LEFT, 24, 88, 160, 24);
+            640,
+            20,
+            kEyebrowLabel,
+            eyebrowFont_);
+        createControl(
+            L"STATIC",
+            L"Controls",
+            SS_LEFT,
+            28,
+            48,
+            640,
+            42,
+            kTitleLabel,
+            titleFont_);
+        createControl(
+            L"STATIC",
+            L"Choose the shortcuts that start your next auction and giveaway.",
+            SS_LEFT,
+            28,
+            94,
+            640,
+            24,
+            kSubtitleLabel);
+        createControl(
+            L"STATIC",
+            L"LIVE ACTION SHORTCUTS",
+            SS_LEFT,
+            48,
+            146,
+            600,
+            22,
+            0,
+            eyebrowFont_);
+        createControl(L"STATIC", L"Next auction", SS_LEFT | SS_CENTERIMAGE, 48, 188, 150, 44);
         auctionButton_ = createControl(
             L"BUTTON",
             hotkeyText(staged_.auction).c_str(),
-            BS_PUSHBUTTON,
-            200,
-            80,
-            250,
-            36,
-            kAuctionButton);
-        createControl(L"STATIC", L"Next giveaway", SS_LEFT, 24, 142, 160, 24);
+            BS_OWNERDRAW | WS_TABSTOP,
+            210,
+            188,
+            430,
+            44,
+            kAuctionButton,
+            bodyBoldFont_);
+        createControl(L"STATIC", L"Next giveaway", SS_LEFT | SS_CENTERIMAGE, 48, 246, 150, 44);
         giveawayButton_ = createControl(
             L"BUTTON",
             hotkeyText(staged_.giveaway).c_str(),
-            BS_PUSHBUTTON,
-            200,
-            134,
-            250,
-            36,
-            kGiveawayButton);
+            BS_OWNERDRAW | WS_TABSTOP,
+            210,
+            246,
+            430,
+            44,
+            kGiveawayButton,
+            bodyBoldFont_);
         createControl(
             L"STATIC",
-            L"Logitech R400 is detected automatically: Previous = Auction, Next = Giveaway. Page Up/Down are reserved for this profile; its normal keys still reach the foreground app.",
+            L"Logitech R400",
             SS_LEFT,
-            24,
-            194,
-            560,
-            58);
-        createControl(L"BUTTON", L"Apply", BS_DEFPUSHBUTTON, 240, 300, 100, 34, kApplyButton);
-        createControl(L"BUTTON", L"Reset", BS_PUSHBUTTON, 350, 300, 100, 34, kResetButton);
-        createControl(L"BUTTON", L"Close", BS_PUSHBUTTON, 460, 300, 100, 34, kCloseButton);
+            48,
+            338,
+            600,
+            22,
+            0,
+            eyebrowFont_);
+        createControl(
+            L"STATIC",
+            L"Previous = Auction  •  Next = Giveaway. Page Up/Down stay available to the foreground app and are reserved here.",
+            SS_LEFT,
+            48,
+            368,
+            590,
+            48,
+            kMutedLabel);
+        statusLabel_ = createControl(
+            L"STATIC",
+            L"Current mappings loaded from Windows.",
+            SS_LEFT | SS_CENTERIMAGE,
+            28,
+            452,
+            340,
+            40,
+            kStatusLabel);
+        createControl(L"BUTTON", L"Apply changes", BS_OWNERDRAW | WS_TABSTOP, 382, 452, 132, 40, kApplyButton, bodyBoldFont_);
+        createControl(L"BUTTON", L"Reset", BS_OWNERDRAW | WS_TABSTOP, 524, 452, 76, 40, kResetButton, bodyBoldFont_);
+        createControl(L"BUTTON", L"Close", BS_OWNERDRAW | WS_TABSTOP, 610, 452, 70, 40, kCloseButton, bodyBoldFont_);
+    }
+
+    static void drawRoundedPanel(
+        HDC dc,
+        const RECT &rectangle,
+        COLORREF fill,
+        COLORREF border,
+        int radius) {
+        HBRUSH brush = CreateSolidBrush(fill);
+        HPEN pen = CreatePen(PS_SOLID, 1, border);
+        HGDIOBJ oldBrush = SelectObject(dc, brush);
+        HGDIOBJ oldPen = SelectObject(dc, pen);
+        RoundRect(
+            dc,
+            rectangle.left,
+            rectangle.top,
+            rectangle.right,
+            rectangle.bottom,
+            radius,
+            radius);
+        SelectObject(dc, oldPen);
+        SelectObject(dc, oldBrush);
+        DeleteObject(pen);
+        DeleteObject(brush);
+    }
+
+    void paintSurface(HDC dc) const {
+        RECT client{};
+        GetClientRect(window_, &client);
+        FillRect(dc, &client, windowBackgroundBrush_);
+        drawRoundedPanel(dc, RECT{28, 132, 680, 310}, kSurfaceBackground, kBorderColor, 16);
+        drawRoundedPanel(dc, RECT{28, 324, 680, 432}, kSurfaceBackground, kBorderColor, 16);
+    }
+
+    void drawButton(const DRAWITEMSTRUCT &item) const {
+        const bool primary = item.CtlID == kApplyButton;
+        const bool pressed = (item.itemState & ODS_SELECTED) != 0;
+        const bool focused = (item.itemState & ODS_FOCUS) != 0;
+        COLORREF fill = primary ? kAccentColor : kInputBackground;
+        COLORREF border = primary ? kAccentHoverColor : kBorderColor;
+        if (focused) {
+            border = kAccentHoverColor;
+        }
+        if (pressed) {
+            fill = primary ? RGB(17, 88, 199) : kSurfaceBackground;
+        }
+        RECT buttonRect = item.rcItem;
+        InflateRect(&buttonRect, -1, -1);
+        drawRoundedPanel(item.hDC, buttonRect, fill, border, 12);
+
+        wchar_t text[128]{};
+        GetWindowTextW(item.hwndItem, text, static_cast<int>(std::size(text)));
+        SetBkMode(item.hDC, TRANSPARENT);
+        SetTextColor(item.hDC, kPrimaryText);
+        HFONT font = reinterpret_cast<HFONT>(
+            SendMessageW(item.hwndItem, WM_GETFONT, 0, 0));
+        HGDIOBJ oldFont = SelectObject(item.hDC, font != nullptr ? font : bodyBoldFont_);
+        RECT textRect = item.rcItem;
+        DrawTextW(
+            item.hDC,
+            text,
+            -1,
+            &textRect,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        SelectObject(item.hDC, oldFont);
+
     }
 
     static bool isModifierKey(UINT key) {
@@ -996,7 +1195,7 @@ private:
             refreshButtons();
             return;
         }
-        MessageBoxW(window_, L"Auction and Giveaway shortcuts are active.", L"Quick Swap Tools", MB_OK | MB_ICONINFORMATION);
+        setStatusText(L"Saved. Auction and Giveaway shortcuts are active.");
     }
 
     void refreshButtons() {
@@ -1005,11 +1204,61 @@ private:
         recordingAction_ = 0;
     }
 
+    void setStatusText(const wchar_t *text) {
+        SetWindowTextW(statusLabel_, text);
+        RedrawWindow(
+            statusLabel_,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW);
+    }
+
     LRESULT handleMessage(UINT message, WPARAM wParam, LPARAM lParam) {
         switch (message) {
         case WM_CREATE:
             createControls();
             return 0;
+        case WM_PAINT: {
+            PAINTSTRUCT paint{};
+            HDC dc = BeginPaint(window_, &paint);
+            paintSurface(dc);
+            EndPaint(window_, &paint);
+            return 0;
+        }
+        case WM_ERASEBKGND: {
+            RECT client{};
+            GetClientRect(window_, &client);
+            FillRect(reinterpret_cast<HDC>(wParam), &client, windowBackgroundBrush_);
+            return 1;
+        }
+        case WM_CTLCOLORSTATIC: {
+            HDC dc = reinterpret_cast<HDC>(wParam);
+            const int identifier = GetDlgCtrlID(reinterpret_cast<HWND>(lParam));
+            if (identifier == kStatusLabel) {
+                SetBkMode(dc, OPAQUE);
+                SetBkColor(dc, kWindowBackground);
+                SetTextColor(dc, kSecondaryText);
+                return reinterpret_cast<LRESULT>(windowBackgroundBrush_);
+            }
+            SetBkMode(dc, TRANSPARENT);
+            SetTextColor(
+                dc,
+                identifier == kEyebrowLabel
+                    ? kAccentHoverColor
+                    : (identifier == kSubtitleLabel
+                          || identifier == kMutedLabel)
+                        ? kSecondaryText
+                        : kPrimaryText);
+            return reinterpret_cast<LRESULT>(GetStockObject(NULL_BRUSH));
+        }
+        case WM_DRAWITEM: {
+            const auto *item = reinterpret_cast<const DRAWITEMSTRUCT *>(lParam);
+            if (item != nullptr && item->CtlType == ODT_BUTTON) {
+                drawButton(*item);
+                return TRUE;
+            }
+            break;
+        }
         case WM_COMMAND:
             switch (LOWORD(wParam)) {
             case kAuctionButton:
@@ -1022,6 +1271,7 @@ private:
             case kResetButton:
                 staged_ = defaultHotkeys();
                 refreshButtons();
+                setStatusText(L"Defaults selected. Apply changes to activate them.");
                 return 0;
             case kCloseButton:
                 DestroyWindow(window_);
@@ -1053,6 +1303,12 @@ private:
     HWND window_ = nullptr;
     HWND auctionButton_ = nullptr;
     HWND giveawayButton_ = nullptr;
+    HWND statusLabel_ = nullptr;
+    HBRUSH windowBackgroundBrush_ = nullptr;
+    HFONT bodyFont_ = nullptr;
+    HFONT bodyBoldFont_ = nullptr;
+    HFONT titleFont_ = nullptr;
+    HFONT eyebrowFont_ = nullptr;
     HotkeyPair staged_{};
     int recordingAction_ = 0;
 };

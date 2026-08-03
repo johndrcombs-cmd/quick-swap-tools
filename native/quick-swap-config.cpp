@@ -1,5 +1,6 @@
 #include <QApplication>
 
+#include <QColor>
 #include <QCoreApplication>
 #include <QDBusInterface>
 #include <QDBusMessage>
@@ -17,8 +18,10 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QMessageBox>
+#include <QPalette>
 #include <QProcess>
 #include <QPushButton>
+#include <QStyleFactory>
 #include <QVBoxLayout>
 
 #include <KGlobalAccel>
@@ -32,6 +35,96 @@
 
 namespace {
 constexpr auto kComponent = "quick-swap-tools";
+
+QPalette darkPalette() {
+    QPalette palette;
+    palette.setColor(QPalette::Window, QColor(QStringLiteral("#0b0f14")));
+    palette.setColor(QPalette::WindowText, QColor(QStringLiteral("#e6edf3")));
+    palette.setColor(QPalette::Base, QColor(QStringLiteral("#0d1117")));
+    palette.setColor(QPalette::AlternateBase, QColor(QStringLiteral("#161b22")));
+    palette.setColor(QPalette::Text, QColor(QStringLiteral("#e6edf3")));
+    palette.setColor(QPalette::Button, QColor(QStringLiteral("#21262d")));
+    palette.setColor(QPalette::ButtonText, QColor(QStringLiteral("#e6edf3")));
+    palette.setColor(QPalette::Highlight, QColor(QStringLiteral("#1f6feb")));
+    palette.setColor(QPalette::HighlightedText, QColor(QStringLiteral("#ffffff")));
+    palette.setColor(QPalette::PlaceholderText, QColor(QStringLiteral("#8b949e")));
+    palette.setColor(QPalette::ToolTipBase, QColor(QStringLiteral("#161b22")));
+    palette.setColor(QPalette::ToolTipText, QColor(QStringLiteral("#e6edf3")));
+    palette.setColor(QPalette::BrightText, QColor(QStringLiteral("#f85149")));
+    palette.setColor(QPalette::Link, QColor(QStringLiteral("#58a6ff")));
+    return palette;
+}
+
+QString darkStyleSheet() {
+    return QStringLiteral(R"(
+        QWidget {
+            background-color: #0b0f14;
+            color: #e6edf3;
+            font-family: "Noto Sans", "Segoe UI", sans-serif;
+            font-size: 14px;
+        }
+        QDialog { background-color: #0b0f14; }
+        QLabel#eyebrow {
+            color: #58a6ff;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        QLabel#pageTitle {
+            color: #f0f6fc;
+            font-size: 26px;
+            font-weight: 700;
+        }
+        QLabel#sectionTitle {
+            color: #f0f6fc;
+            font-size: 16px;
+            font-weight: 650;
+        }
+        QLabel#muted, QLabel#statusText { color: #8b949e; }
+        QLabel#statusText {
+            background-color: #0d1117;
+            border: 1px solid #21262d;
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+        QFrame#controlCard, QFrame#deviceCard {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+        }
+        QFrame#controlCard QLabel, QFrame#deviceCard QLabel {
+            background-color: transparent;
+        }
+        QPushButton {
+            min-height: 36px;
+            padding: 0 16px;
+            background-color: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            color: #e6edf3;
+            font-weight: 600;
+        }
+        QPushButton:hover { background-color: #30363d; border-color: #484f58; }
+        QPushButton:pressed { background-color: #161b22; }
+        QPushButton:focus { border: 2px solid #58a6ff; }
+        QPushButton[primary="true"] {
+            background-color: #1f6feb;
+            border-color: #388bfd;
+            color: #ffffff;
+        }
+        QPushButton[primary="true"]:hover { background-color: #388bfd; }
+        KKeySequenceWidget {
+            min-height: 40px;
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+        }
+        KKeySequenceWidget QPushButton {
+            background-color: #0d1117;
+            border: none;
+        }
+        QMessageBox { background-color: #0b0f14; }
+    )");
+}
 
 struct ShortcutAction {
     QString uniqueName;
@@ -372,6 +465,9 @@ int runGui(int argc, char **argv) {
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName(QStringLiteral("quick-swap-config"));
     QCoreApplication::setOrganizationName(QStringLiteral("OniByts"));
+    app.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+    app.setPalette(darkPalette());
+    app.setStyleSheet(darkStyleSheet());
 
     ShortcutStore store;
     if (!store.isAvailable()) {
@@ -402,40 +498,78 @@ int runGui(int argc, char **argv) {
 
     QDialog dialog;
     dialog.setWindowTitle(QStringLiteral("Quick Swap Tools — Controls"));
-    dialog.setMinimumWidth(560);
+    dialog.setMinimumSize(660, 590);
+    dialog.resize(700, 640);
 
     auto *layout = new QVBoxLayout(&dialog);
-    auto *title = new QLabel(QStringLiteral("<h2>Configure controls</h2>"));
+    layout->setContentsMargins(28, 26, 28, 24);
+    layout->setSpacing(14);
+
+    auto *eyebrow = new QLabel(QStringLiteral("QUICK SWAP TOOLS"));
+    eyebrow->setObjectName(QStringLiteral("eyebrow"));
+    layout->addWidget(eyebrow);
+
+    auto *title = new QLabel(QStringLiteral("Controls"));
+    title->setObjectName(QStringLiteral("pageTitle"));
     layout->addWidget(title);
 
     auto *instructions = new QLabel(QStringLiteral(
-        "Click a binding, then press the keyboard, macro-pad, or controller button "
-        "you want to use. Changes are not saved until you click <b>Apply</b>."));
+        "Choose the shortcuts that start your next auction and giveaway. "
+        "Changes stay local until you apply them."));
+    instructions->setObjectName(QStringLiteral("muted"));
     instructions->setWordWrap(true);
     layout->addWidget(instructions);
 
-    auto *deviceNote = new QLabel(QStringLiteral(
-        "<b>Controller note:</b> keyboard-style devices such as the Razer Tartarus "
-        "work directly. A normal letter is not device-specific—it would also fire "
-        "from your main keyboard. For gamepads, first map the button to an unused "
-        "key such as F13–F24."));
-    deviceNote->setWordWrap(true);
-    deviceNote->setFrameStyle(QFrame::StyledPanel);
-    deviceNote->setMargin(10);
-    layout->addWidget(deviceNote);
+    auto *controlCard = new QFrame();
+    controlCard->setObjectName(QStringLiteral("controlCard"));
+    auto *controlLayout = new QVBoxLayout(controlCard);
+    controlLayout->setContentsMargins(20, 18, 20, 20);
+    controlLayout->setSpacing(14);
+    auto *controlTitle = new QLabel(QStringLiteral("Live action shortcuts"));
+    controlTitle->setObjectName(QStringLiteral("sectionTitle"));
+    controlLayout->addWidget(controlTitle);
+    auto *controlHelp = new QLabel(QStringLiteral(
+        "Select a binding, then press a keyboard, macro-pad, or mapped controller key."));
+    controlHelp->setObjectName(QStringLiteral("muted"));
+    controlHelp->setWordWrap(true);
+    controlLayout->addWidget(controlHelp);
 
     auto *form = new QFormLayout();
+    form->setContentsMargins(0, 4, 0, 0);
+    form->setHorizontalSpacing(24);
+    form->setVerticalSpacing(14);
+    form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     auto *auctionWidget = new KKeySequenceWidget();
     auto *giveawayWidget = new KKeySequenceWidget();
     configureRecorder(auctionWidget);
     configureRecorder(giveawayWidget);
     auctionWidget->setKeySequence(displayedAuction);
     giveawayWidget->setKeySequence(displayedGiveaway);
-    form->addRow(QStringLiteral("Next auction:"), auctionWidget);
-    form->addRow(QStringLiteral("Next giveaway:"), giveawayWidget);
-    layout->addLayout(form);
+    form->addRow(QStringLiteral("Next auction"), auctionWidget);
+    form->addRow(QStringLiteral("Next giveaway"), giveawayWidget);
+    controlLayout->addLayout(form);
+    layout->addWidget(controlCard);
+
+    auto *deviceCard = new QFrame();
+    deviceCard->setObjectName(QStringLiteral("deviceCard"));
+    auto *deviceLayout = new QVBoxLayout(deviceCard);
+    deviceLayout->setContentsMargins(20, 16, 20, 16);
+    deviceLayout->setSpacing(6);
+    auto *deviceTitle = new QLabel(QStringLiteral("Device tip"));
+    deviceTitle->setObjectName(QStringLiteral("sectionTitle"));
+    deviceLayout->addWidget(deviceTitle);
+    auto *deviceNote = new QLabel(QStringLiteral(
+        "Keyboard-style devices such as the Razer Tartarus work directly. For a "
+        "gamepad, map its button to an unused key such as F13–F24. Normal letters "
+        "also fire from your main keyboard."));
+    deviceNote->setObjectName(QStringLiteral("muted"));
+    deviceNote->setWordWrap(true);
+    deviceLayout->addWidget(deviceNote);
+    layout->addWidget(deviceCard);
 
     auto *status = new QLabel(QStringLiteral("Current mappings loaded from KDE."));
+    status->setObjectName(QStringLiteral("statusText"));
     status->setWordWrap(true);
     layout->addWidget(status);
 
@@ -449,6 +583,7 @@ int runGui(int argc, char **argv) {
 
     auto *buttons = new QDialogButtonBox(
         QDialogButtonBox::Apply | QDialogButtonBox::Close);
+    buttons->button(QDialogButtonBox::Apply)->setProperty("primary", true);
     layout->addWidget(buttons);
 
     QObject::connect(resetButton, &QPushButton::clicked, &dialog, [=] {

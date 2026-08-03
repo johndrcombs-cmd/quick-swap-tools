@@ -19,11 +19,12 @@ COMMON_FLAGS=(
 
 "$CXX" "${COMMON_FLAGS[@]}" -mwindows -municode \
   "$ROOT/native/windows/quick-swap-tools.cpp" \
-  -lshell32 \
+  -lshell32 -ldwmapi \
   -o "$ROOT/build/windows/quick-swap-tools.exe"
 
 "$CXX" "${COMMON_FLAGS[@]}" -mwindows -municode -DQST_CONFIG_ONLY -Wno-unused-function \
   "$ROOT/native/windows/quick-swap-tools.cpp" \
+  -ldwmapi \
   -o "$ROOT/build/windows/quick-swap-config.exe"
 
 printf 'Built Windows host and configurator in %s\n' "$ROOT/build/windows"

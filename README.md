@@ -23,6 +23,11 @@ then click **Apply**. The configurator checks for duplicate and system-wide
 conflicts, warns before accepting potentially disruptive unmodified keys, and
 can reset the defaults.
 
+The Windows and KDE configurators use the same streamlined, dark-only visual
+style. The theme is fixed rather than following the operating-system light
+setting, so controls, status messages, and focus indicators remain consistent
+while streaming.
+
 The Razer Tartarus Pro appears to Linux and Windows as a keyboard, so its keys can be
 recorded directly. The operating system sees the key emitted by the device rather than the
 physical label such as “Key 20.” To keep a binding specific in practice, map
