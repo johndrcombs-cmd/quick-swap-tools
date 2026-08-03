@@ -43,9 +43,9 @@ function Assert-SafeLocalPath([string]$Path, [string]$Description) {
                 Refuse "$Description traverses a reparse point"
             }
         }
-        $Parent = Split-Path -LiteralPath $Current -Parent
-        if ($Parent -eq $Current) { break }
-        $Current = $Parent
+        $Parent = [IO.Directory]::GetParent($Current)
+        if ($null -eq $Parent) { break }
+        $Current = $Parent.FullName
     }
 }
 

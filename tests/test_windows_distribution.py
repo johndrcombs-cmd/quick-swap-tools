@@ -521,6 +521,7 @@ class WindowsInstallerPolicyTests(unittest.TestCase):
         for script in (installer, uninstaller):
             self.assertIn("IsUnc", script)
             self.assertNotIn("[Uri]::IsUnc(", script)
+            self.assertNotIn("Split-Path -LiteralPath $Current -Parent", script)
             self.assertIn("ReparsePoint", script)
             self.assertIn("DriveType]::Fixed", script)
 
