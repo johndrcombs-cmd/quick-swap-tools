@@ -520,6 +520,7 @@ class WindowsInstallerPolicyTests(unittest.TestCase):
         uninstaller = (ROOT / "packaging" / "windows" / "uninstall.ps1").read_text()
         for script in (installer, uninstaller):
             self.assertIn("IsUnc", script)
+            self.assertNotIn("[Uri]::IsUnc(", script)
             self.assertIn("ReparsePoint", script)
             self.assertIn("DriveType]::Fixed", script)
 

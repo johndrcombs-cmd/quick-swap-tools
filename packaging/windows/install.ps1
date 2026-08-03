@@ -47,7 +47,11 @@ function Fail([string]$Message) {
 }
 
 function Assert-SafeLocalPath([string]$Path, [string]$Description) {
-    if (-not [IO.Path]::IsPathRooted($Path) -or [Uri]::IsUnc($Path)) {
+    if (-not [IO.Path]::IsPathRooted($Path)) {
+        Fail "$Description must be an absolute path on a local fixed drive"
+    }
+    $PathUri = New-Object Uri($Path)
+    if ($PathUri.IsUnc) {
         Fail "$Description must be an absolute path on a local fixed drive"
     }
     $Root = [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($Path))

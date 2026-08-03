@@ -22,7 +22,11 @@ function Refuse([string]$Message) {
 }
 
 function Assert-SafeLocalPath([string]$Path, [string]$Description) {
-    if (-not [IO.Path]::IsPathRooted($Path) -or [Uri]::IsUnc($Path)) {
+    if (-not [IO.Path]::IsPathRooted($Path)) {
+        Refuse "$Description is not an absolute local path"
+    }
+    $PathUri = New-Object Uri($Path)
+    if ($PathUri.IsUnc) {
         Refuse "$Description is not an absolute local path"
     }
     $FullPath = [IO.Path]::GetFullPath($Path)
