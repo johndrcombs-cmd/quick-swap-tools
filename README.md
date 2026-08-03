@@ -54,6 +54,8 @@ cd ~/quick-swap-tools
 
 The source installer:
 
+- refuses to overwrite existing installations, manifests, or desktop entries;
+- rolls back files and shortcut changes if installation fails;
 - builds and installs the native host at `~/.local/lib/quick-swap-tools/`;
 - installs the Firefox native-host manifest;
 - packages the extension;

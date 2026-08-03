@@ -14,7 +14,7 @@
     "test": "npm run build:native && node --test tests/*.test.js && python3 -m unittest discover -s tests -p 'test_*.py' -v",
     "test:js": "node --test tests/*.test.js",
     "test:python": "python3 -m unittest discover -s tests -p 'test_*.py' -v",
-    "check": "npm run lint:extension && npm run test && python3 -m py_compile native/quick_swap.py tests/test_native.py tests/test_native_host.py tests/test_release_installer.py"
+    "check": "npm run lint:extension && npm run test && python3 -m py_compile native/quick_swap.py tests/test_native.py tests/test_native_host.py tests/test_release_installer.py tests/test_source_installer.py"
   },
   "engines": {
     "node": ">=20"
