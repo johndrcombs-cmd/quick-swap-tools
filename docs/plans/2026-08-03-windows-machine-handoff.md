@@ -8,11 +8,20 @@
 
 **Branch:** `main`
 
-**Expected starting commit:** `af73cbed867e2e9fdcf2f375f819102c6e7fda38`
+**Expected starting commit:** `5655b47e99874e4109ea3d603807d0bca476d34e`
 
 **Original status at handoff:** The source was committed and pushed. Standard CI passed. Native Windows CI built and passed protocol/policy tests, but the real install/uninstall step failed while creating the Start Menu shortcut because WScript rejected `$Shortcut.IconLocation = ""`.
 
 **Windows validation update (2026-08-03):** The empty-icon defect and subsequent Windows PowerShell 5.1 installer/uninstaller defects have been fixed and exercised on a real Windows machine. The applicable 37-test Windows suite, repeated install/uninstall, ownership-collision tests, tamper rejection, configurator hotkey transactions, signed-XPI acceptance, and deterministic development-bundle checks pass locally. The remaining public-release gates are Authenticode signing, Defender/SmartScreen, explicit Windows 11 and 150% DPI evidence, live Whatnot acceptance, and pushed final CI. No Windows release has been published.
+
+**Physical-device update (2026-08-03):** The Windows host now has a
+device-filtered Raw Input profile for the Logitech R400 receiver (`VID_046D`,
+`PID_C538`, `MI_00`). Previous maps to Auction and Next maps to Giveaway. The
+39-test Windows suite and explicit two-host ownership tests pass, and both the
+built and freshly installed executables passed physical Previous/Next acceptance
+against the connected R400. The profile does not suppress the R400's ordinary
+Page Up/Page Down delivery to the foreground application; those two keys are
+reserved from global-hotkey configuration to prevent conflicting actions.
 
 ---
 
@@ -25,14 +34,14 @@ Work in the repository:
 https://github.com/johndrcombs-cmd/quick-swap-tools.git
 
 Start from main at or after:
-af73cbed867e2e9fdcf2f375f819102c6e7fda38
+5655b47e99874e4109ea3d603807d0bca476d34e
 
 Read docs/plans/2026-08-03-windows-machine-handoff.md completely before changing anything. Also read README.md, packaging/windows/README.md, docs/plans/2026-08-02-windows-distribution.md, CONTRIBUTING.md, and SECURITY.md.
 
 Use tests-first development. Inspect the current files before editing. Do not modify or retag v0.1.0. Do not publish a Windows release. Do not claim the package is production-ready, trusted, signed, or friend-ready until every release gate in the handoff is satisfied.
 
 Preserve the architecture and protocol:
-keyboard/macro-pad -> RegisterHotKey -> resident Firefox native-messaging host -> existing extension -> semantic Whatnot DOM activation.
+keyboard/macro-pad -> RegisterHotKey, or approved device profile -> Raw Input -> resident Firefox native-messaging host -> existing extension -> semantic Whatnot DOM activation.
 
 Preserve actions `auction` and `giveaway`, the 150 ms physical-bounce interval, the 1500 ms extension reconnect delay, command-ID duplicate suppression, per-user HKCU registration, no-admin installation, semantic DOM safety, and Firefox.
 
@@ -68,7 +77,10 @@ Do not change these unless John explicitly approves:
 - Reject F12 because Windows reserves it for debugger use.
 - Recommend F13–F24 for a Tartarus or keyboard-emulating macro pad.
 - `RegisterHotKey` identifies the emitted key combination, not the physical keyboard.
-- Raw Input/HID/device-specific behavior is deferred.
+- The approved Logitech R400 Raw Input profile matches only `VID_046D`,
+  `PID_C538`, `MI_00`: Previous → Auction and Next → Giveaway.
+- Additional Raw Input/HID/device-specific profiles require explicit approval and
+  physical event capture before implementation.
 - Installation is per-user and must not require elevation.
 - Registry mutation must be limited to Quick Swap Tools-owned HKCU values.
 - Uninstallation must preserve unrelated settings, registry entries, shortcuts, and files.
@@ -82,9 +94,9 @@ Do not change these unless John explicitly approves:
 ## 3. Architecture already implemented
 
 ```text
-Keyboard or keyboard-emulating macro pad
+Keyboard, keyboard-emulating macro pad, or approved Logitech R400
         ↓
-Win32 RegisterHotKey / WM_HOTKEY
+Win32 RegisterHotKey / WM_HOTKEY or device-filtered Raw Input / WM_INPUT
         ↓
 quick-swap-tools.exe
 (resident GUI-subsystem native-messaging host)

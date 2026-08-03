@@ -4,6 +4,9 @@ All notable changes to Quick Swap Tools are documented here.
 
 ## Unreleased
 
+- Add device-filtered Logitech R400 support on Windows: Previous starts the next
+  auction and Next starts the next giveaway without treating Page Up/Page Down
+  from other keyboards as Quick Swap controls.
 - Add a game-style KDE control configurator for keyboards, macro pads, and
   controller buttons mapped to keyboard keys.
 - Preserve user-selected global shortcuts through KDE `KGlobalAccel` and warn

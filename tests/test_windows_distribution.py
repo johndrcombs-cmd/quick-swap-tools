@@ -103,6 +103,40 @@ class WindowsHotkeyValidationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), {"exclusive": True})
 
+    def test_logitech_r400_profile_maps_only_its_previous_and_next_buttons(self):
+        result = subprocess.run(
+            [*WINDOWS_RUNNER, str(WINDOWS_BINARY), "--self-test-r400-profile"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env={**os.environ, "WINEDEBUG": "-all"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.strip(), "R400 self-test output was missing")
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "matchedDevice": True,
+                "previous": "auction",
+                "next": "giveaway",
+                "otherDeviceIgnored": True,
+                "otherKeyIgnored": True,
+                "keyboardPacketSizeAccepted": True,
+                "reservedHotkeysRejected": True,
+            },
+        )
+
+    def test_logitech_r400_profile_uses_device_filtered_raw_input(self):
+        source = (ROOT / "native" / "windows" / "quick-swap-tools.cpp").read_text()
+        self.assertIn("RegisterRawInputDevices", source)
+        self.assertIn("RIDEV_INPUTSINK", source)
+        self.assertNotIn("RIDEV_NOLEGACY", source)
+        self.assertIn("WM_INPUT", source)
+        self.assertIn("GetRawInputDeviceInfoW", source)
+        self.assertIn("RI_KEY_BREAK", source)
+        self.assertGreaterEqual(source.count("DispatchMessageW(&message);"), 2)
+
     def test_effective_windows_defaults_avoid_reserved_windows_key_combinations(self):
         result = subprocess.run(
             [*WINDOWS_RUNNER, str(WINDOWS_BINARY), "--dump-effective-hotkeys"],
@@ -190,6 +224,7 @@ class WindowsNativeHostTests(unittest.TestCase):
             self.assertEqual(message["type"], "ready")
             self.assertFalse(message["auctionShortcut"])
             self.assertFalse(message["giveawayShortcut"])
+            self.assertFalse(message["logitechR400"])
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -402,6 +437,7 @@ class WindowsNativeHostTests(unittest.TestCase):
             message = json.loads(self.read_exact(process.stdout, length))
             self.assertTrue(message["auctionShortcut"])
             self.assertTrue(message["giveawayShortcut"])
+            self.assertTrue(message["logitechR400"])
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -437,15 +473,22 @@ class WindowsNativeHostTests(unittest.TestCase):
             return json.loads(self.read_exact(process.stdout, length))
 
         try:
-            states = [hello(process)["auctionShortcut"] for process in processes]
+            readiness = [hello(process) for process in processes]
+            states = [state["auctionShortcut"] for state in readiness]
             self.assertEqual(states.count(True), 1)
+            self.assertEqual(
+                [state["logitechR400"] for state in readiness],
+                states,
+            )
             owner = processes[states.index(True)]
             waiter = processes[states.index(False)]
             assert owner.stdin is not None
             owner.stdin.close()
             owner.wait(timeout=3)
             time.sleep(1.5)
-            self.assertTrue(hello(waiter)["auctionShortcut"])
+            waiter_ready = hello(waiter)
+            self.assertTrue(waiter_ready["auctionShortcut"])
+            self.assertTrue(waiter_ready["logitechR400"])
         finally:
             for process in processes:
                 if process.poll() is None:
@@ -471,6 +514,9 @@ class WindowsConfiguratorTests(unittest.TestCase):
         self.assertIn("Press a key", strings)
         self.assertIn("Apply", strings)
         self.assertIn("Reset", strings)
+        self.assertIn("Logitech R400", strings)
+        self.assertIn("Previous = Auction", strings)
+        self.assertIn("Next = Giveaway", strings)
 
 
 class WindowsInstallerPolicyTests(unittest.TestCase):

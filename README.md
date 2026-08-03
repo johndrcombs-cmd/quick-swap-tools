@@ -10,6 +10,8 @@ Quick Swap Tools is a separate, low-latency control path for Whatnot seller stre
 | Linux/KDE | `Super+G` | Start the next giveaway |
 | Windows | `Ctrl+Shift+F9` | Start the next auction |
 | Windows | `Ctrl+Shift+F10` | Start the next giveaway |
+| Windows + Logitech R400 | Previous | Start the next auction |
+| Windows + Logitech R400 | Next | Start the next giveaway |
 
 The host applies only a 150 ms hardware key-bounce filter. Distinct presses are queued, while duplicate delivery of the same command ID is suppressed. The page script refuses to click when the matching control is hidden, disabled, covered, missing, or ambiguous.
 
@@ -28,13 +30,21 @@ the Tartarus or controller button to an unused key such as `F13`–`F24`, then
 record that key in Quick Swap Tools. A gamepad that emits only joystick-button
 events needs Input Remapper, Steam Input, or a similar keyboard mapper first.
 
+On Windows, a built-in Raw Input profile recognizes the Logitech R400 receiver
+(`VID_046D`, `PID_C538`, keyboard interface `MI_00`) separately from other
+keyboards. Previous triggers Auction and Next triggers Giveaway automatically;
+the Start Slideshow, Black Screen, and Laser buttons are not assigned. The R400's
+normal Page Up/Page Down keystrokes still reach the foreground application.
+Page Up and Page Down are reserved and cannot also be configured as global
+hotkeys, preventing one R400 press from producing conflicting actions.
+
 ## Why this architecture
 
 Firefox starts the platform-native C++ host once and keeps it connected through native messaging. It registers directly with KDE's `KGlobalAccel` on Linux or `RegisterHotKey` on Windows, so a hotkey does not launch a shell, Python process, browser, or desktop automation tool:
 
 ```text
 Linux:   KGlobalAccel   → native host → Firefox native messaging → Whatnot content script
-Windows: RegisterHotKey → native host → Firefox native messaging → Whatnot content script
+Windows: RegisterHotKey / device-filtered Raw Input → native host → Firefox native messaging → Whatnot content script
 ```
 
 This is faster and more reliable on Wayland than coordinate clicking, `ydotool`, Firefox remote debugging, or launching a command for every keypress. Chrome would not make this path faster, so Firefox remains the target.

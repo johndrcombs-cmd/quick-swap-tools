@@ -11,6 +11,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <cstddef>
 #include <cwctype>
 #include <cstdint>
 #include <deque>
@@ -96,6 +97,96 @@ constexpr wchar_t kReloadFailedEventName[] = L"Local\\OniByts.QuickSwapTools.Rel
 constexpr wchar_t kStopEventName[] = L"Local\\OniByts.QuickSwapTools.Stop";
 constexpr wchar_t kHotkeyOwnerMutexName[] = L"Local\\OniByts.QuickSwapTools.HotkeyOwner.v1";
 constexpr wchar_t kConfiguratorMutexName[] = L"Local\\OniByts.QuickSwapTools.Configurator.v1";
+constexpr wchar_t kLogitechR400DeviceId[] = L"VID_046D&PID_C538&MI_00";
+
+enum class PhysicalAction {
+    none,
+    auction,
+    giveaway,
+};
+
+bool containsCaseInsensitive(std::wstring_view text, std::wstring_view expected) {
+    return std::search(
+               text.begin(),
+               text.end(),
+               expected.begin(),
+               expected.end(),
+               [](wchar_t left, wchar_t right) {
+                   return std::towupper(left) == std::towupper(right);
+               }) != text.end();
+}
+
+PhysicalAction logitechR400Action(std::wstring_view deviceName, UINT virtualKey) {
+    if (!containsCaseInsensitive(deviceName, kLogitechR400DeviceId)) {
+        return PhysicalAction::none;
+    }
+    if (virtualKey == VK_PRIOR) {
+        return PhysicalAction::auction;
+    }
+    if (virtualKey == VK_NEXT) {
+        return PhysicalAction::giveaway;
+    }
+    return PhysicalAction::none;
+}
+
+bool isRawKeyboardPacketSizeValid(UINT size) {
+    constexpr std::size_t minimum = offsetof(RAWINPUT, data) + sizeof(RAWKEYBOARD);
+    return size >= minimum && size <= 64U * 1024U;
+}
+
+bool isLogitechR400ReservedHotkey(UINT virtualKey) {
+    return virtualKey == VK_PRIOR || virtualKey == VK_NEXT;
+}
+
+bool isValidHotkey(const Hotkey &hotkey);
+
+const char *physicalActionName(PhysicalAction action) {
+    switch (action) {
+    case PhysicalAction::auction:
+        return "auction";
+    case PhysicalAction::giveaway:
+        return "giveaway";
+    default:
+        return "";
+    }
+}
+
+int runLogitechR400ProfileSelfTest() {
+    constexpr std::wstring_view r400 =
+        LR"(\\?\hid#vid_046d&pid_c538&mi_00#test)";
+    const PhysicalAction previous = logitechR400Action(r400, VK_PRIOR);
+    const PhysicalAction next = logitechR400Action(r400, VK_NEXT);
+    const bool matchedDevice = previous == PhysicalAction::auction
+        && next == PhysicalAction::giveaway;
+    const bool otherDeviceIgnored = logitechR400Action(
+        LR"(\\?\HID#VID_1B1C&PID_1BFD&MI_00#test)",
+        VK_PRIOR) == PhysicalAction::none;
+    const bool otherKeyIgnored = logitechR400Action(r400, VK_F5)
+        == PhysicalAction::none;
+    constexpr UINT keyboardPacketSize = static_cast<UINT>(
+        offsetof(RAWINPUT, data) + sizeof(RAWKEYBOARD));
+    const bool keyboardPacketSizeAccepted =
+        isRawKeyboardPacketSizeValid(keyboardPacketSize)
+        && !isRawKeyboardPacketSizeValid(keyboardPacketSize - 1);
+    const bool reservedHotkeysRejected =
+        !isValidHotkey({0, VK_PRIOR})
+        && !isValidHotkey({MOD_CONTROL, VK_NEXT})
+        && isValidHotkey({0, VK_F13});
+    std::cout << R"({"matchedDevice":)" << (matchedDevice ? "true" : "false")
+              << R"(,"previous":")" << physicalActionName(previous)
+              << R"(","next":")" << physicalActionName(next)
+              << R"(","otherDeviceIgnored":)" << (otherDeviceIgnored ? "true" : "false")
+              << R"(,"otherKeyIgnored":)" << (otherKeyIgnored ? "true" : "false")
+              << R"(,"keyboardPacketSizeAccepted":)"
+              << (keyboardPacketSizeAccepted ? "true" : "false")
+              << R"(,"reservedHotkeysRejected":)"
+              << (reservedHotkeysRejected ? "true" : "false")
+              << "}\n";
+    return matchedDevice && otherDeviceIgnored && otherKeyIgnored
+            && keyboardPacketSizeAccepted && reservedHotkeysRejected
+        ? 0
+        : 1;
+}
 
 class NamedMutexLease {
 public:
@@ -157,6 +248,7 @@ bool isValidHotkey(const Hotkey &hotkey) {
     return hotkey.virtualKey > 0
         && hotkey.virtualKey <= 0xFE
         && hotkey.virtualKey != VK_F12
+        && !isLogitechR400ReservedHotkey(hotkey.virtualKey)
         && (hotkey.modifiers & ~supportedModifiers) == 0;
 }
 
@@ -763,7 +855,7 @@ private:
             kGiveawayButton);
         createControl(
             L"STATIC",
-            L"Windows binds the emitted key, not a physical device. Two keyboards emitting the same key cannot be distinguished. Map gamepads or vendor-only buttons to keyboard keys first.",
+            L"Logitech R400 is detected automatically: Previous = Auction, Next = Giveaway. Page Up/Down are reserved for this profile; its normal keys still reach the foreground app.",
             SS_LEFT,
             24,
             194,
@@ -987,6 +1079,7 @@ public:
         auto activateHotkeyOwnership = [this, &controlThread] {
             ownsHotkeyMutex_ = true;
             registerConfiguredHotkeys();
+            openLogitechR400Input();
             openControlEvents();
             if (reloadEvent_ != nullptr && stopEvent_ != nullptr) {
                 controlThread = std::thread([this] { watchControlEvents(); });
@@ -1040,10 +1133,14 @@ public:
                 } else if (!registered && reloadFailedEvent_ != nullptr) {
                     SetEvent(reloadFailedEvent_);
                 }
+            } else {
+                TranslateMessage(&message);
+                DispatchMessageW(&message);
             }
         }
 
         unregisterHotkeys();
+        closeLogitechR400Input();
         if (stopEvent_ != nullptr) {
             SetEvent(stopEvent_);
         }
@@ -1077,6 +1174,155 @@ public:
     }
 
 private:
+    static LRESULT CALLBACK rawInputWindowProcedure(
+        HWND window,
+        UINT message,
+        WPARAM wParam,
+        LPARAM lParam) {
+        NativeHost *self = reinterpret_cast<NativeHost *>(
+            GetWindowLongPtrW(window, GWLP_USERDATA));
+        if (message == WM_NCCREATE) {
+            const auto *create = reinterpret_cast<CREATESTRUCTW *>(lParam);
+            self = static_cast<NativeHost *>(create->lpCreateParams);
+            SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+        }
+        if (message == WM_INPUT && self != nullptr) {
+            self->handleRawInput(reinterpret_cast<HRAWINPUT>(lParam));
+        }
+        return DefWindowProcW(window, message, wParam, lParam);
+    }
+
+    void openLogitechR400Input() {
+        constexpr wchar_t className[] = L"OniBytsQuickSwapRawInput";
+        const HINSTANCE instance = GetModuleHandleW(nullptr);
+        WNDCLASSW windowClass{};
+        windowClass.lpfnWndProc = rawInputWindowProcedure;
+        windowClass.hInstance = instance;
+        windowClass.lpszClassName = className;
+        if (RegisterClassW(&windowClass) == 0
+            && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+            return;
+        }
+        rawInputWindow_ = CreateWindowExW(
+            0,
+            className,
+            className,
+            0,
+            0,
+            0,
+            0,
+            0,
+            HWND_MESSAGE,
+            nullptr,
+            instance,
+            this);
+        if (rawInputWindow_ == nullptr) {
+            return;
+        }
+        RAWINPUTDEVICE device{};
+        device.usUsagePage = 0x01;
+        device.usUsage = 0x06;
+        device.dwFlags = RIDEV_INPUTSINK;
+        device.hwndTarget = rawInputWindow_;
+        if (!RegisterRawInputDevices(&device, 1, sizeof(device))) {
+            DestroyWindow(rawInputWindow_);
+            rawInputWindow_ = nullptr;
+            return;
+        }
+        r400InputRegistered_.store(true);
+    }
+
+    void closeLogitechR400Input() {
+        if (rawInputWindow_ == nullptr) {
+            return;
+        }
+        RAWINPUTDEVICE device{};
+        device.usUsagePage = 0x01;
+        device.usUsage = 0x06;
+        device.dwFlags = RIDEV_REMOVE;
+        device.hwndTarget = nullptr;
+        RegisterRawInputDevices(&device, 1, sizeof(device));
+        DestroyWindow(rawInputWindow_);
+        rawInputWindow_ = nullptr;
+        r400InputRegistered_.store(false);
+        r400PreviousPressed_ = false;
+        r400NextPressed_ = false;
+    }
+
+    static std::wstring rawInputDeviceName(HANDLE device) {
+        UINT characters = 0;
+        if (GetRawInputDeviceInfoW(
+                device,
+                RIDI_DEVICENAME,
+                nullptr,
+                &characters) == static_cast<UINT>(-1)
+            || characters == 0) {
+            return {};
+        }
+        std::vector<wchar_t> name(characters + 1, L'\0');
+        const UINT copied = GetRawInputDeviceInfoW(
+            device,
+            RIDI_DEVICENAME,
+            name.data(),
+            &characters);
+        if (copied == static_cast<UINT>(-1) || copied == 0) {
+            return {};
+        }
+        return std::wstring(name.data(), copied);
+    }
+
+    void handleRawInput(HRAWINPUT handle) {
+        UINT size = 0;
+        const UINT queryResult = GetRawInputData(
+            handle,
+            RID_INPUT,
+            nullptr,
+            &size,
+            sizeof(RAWINPUTHEADER));
+        if (queryResult != 0 || !isRawKeyboardPacketSizeValid(size)) {
+            return;
+        }
+        std::vector<BYTE> buffer(size);
+        const UINT copied = GetRawInputData(
+            handle,
+            RID_INPUT,
+            buffer.data(),
+            &size,
+            sizeof(RAWINPUTHEADER));
+        if (copied != size) {
+            return;
+        }
+        const auto *input = reinterpret_cast<const RAWINPUT *>(buffer.data());
+        if (input->header.dwType != RIM_TYPEKEYBOARD) {
+            return;
+        }
+        const std::wstring deviceName = rawInputDeviceName(input->header.hDevice);
+        const PhysicalAction action = logitechR400Action(
+            deviceName,
+            input->data.keyboard.VKey);
+        bool *pressed = nullptr;
+        if (action == PhysicalAction::auction) {
+            pressed = &r400PreviousPressed_;
+        } else if (action == PhysicalAction::giveaway) {
+            pressed = &r400NextPressed_;
+        } else {
+            return;
+        }
+        if ((input->data.keyboard.Flags & RI_KEY_BREAK) != 0) {
+            *pressed = false;
+            return;
+        }
+        if (*pressed) {
+            return;
+        }
+        *pressed = true;
+        if (action == PhysicalAction::auction) {
+            trigger("auction", auctionLastRun_);
+        } else {
+            trigger("giveaway", giveawayLastRun_);
+        }
+    }
+
     bool registerConfiguredHotkeys() {
         const auto hotkeys = loadHotkeys();
         if (!hotkeys) {
@@ -1168,7 +1414,9 @@ private:
                 ready << R"({"type":"ready","auctionShortcut":)"
                       << (auctionRegistered_ ? "true" : "false")
                       << R"(,"giveawayShortcut":)"
-                      << (giveawayRegistered_ ? "true" : "false") << '}';
+                      << (giveawayRegistered_ ? "true" : "false")
+                      << R"(,"logitechR400":)"
+                      << (r400InputRegistered_.load() ? "true" : "false") << '}';
                 writeFrame(ready.str());
             }
         }
@@ -1234,6 +1482,7 @@ private:
     DWORD threadId_ = 0;
     std::atomic<bool> auctionRegistered_{false};
     std::atomic<bool> giveawayRegistered_{false};
+    std::atomic<bool> r400InputRegistered_{false};
     std::atomic<int> inputResult_{0};
     std::atomic<std::uint64_t> commandSequence_{0};
     std::mutex outputMutex_;
@@ -1247,6 +1496,9 @@ private:
     HANDLE reloadFailedEvent_ = nullptr;
     HANDLE stopEvent_ = nullptr;
     HANDLE hotkeyOwnerMutex_ = nullptr;
+    HWND rawInputWindow_ = nullptr;
+    bool r400PreviousPressed_ = false;
+    bool r400NextPressed_ = false;
     bool ownsHotkeyMutex_ = false;
     UINT_PTR ownershipTimerId_ = 0;
 };
@@ -1267,6 +1519,9 @@ int runHost() {
     }
     if (argc == 2 && mode == L"--self-test-configurator-mutex") {
         return runConfiguratorMutexSelfTest();
+    }
+    if (argc == 2 && mode == L"--self-test-r400-profile") {
+        return runLogitechR400ProfileSelfTest();
     }
     if (argc == 2 && mode == L"--dump-effective-hotkeys") {
         return dumpEffectiveHotkeys();

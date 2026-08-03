@@ -23,10 +23,23 @@ The installer verifies every payload checksum, the extension ID, and expected Mo
 
 - **Ctrl+Shift+F9** — start the next Auction
 - **Ctrl+Shift+F10** — start the next Giveaway
+- **Logitech R400 Previous** — start the next Auction
+- **Logitech R400 Next** — start the next Giveaway
 
 Windows reserves many `Win+…` shortcuts, including common combinations such as `Win+A` and `Win+G`, so the Windows defaults intentionally differ from Linux.
 
 To rebind a control, click its binding, press the desired key or key combination, then click **Apply**. The configurator updates a running Firefox host and restores the prior pair if Windows rejects either replacement.
+
+### Logitech R400
+
+The built-in Logitech R400 profile is automatic and device-specific. It accepts
+Previous and Next only from the R400 receiver's `VID_046D`, `PID_C538`, `MI_00`
+keyboard interface, so Page Up/Page Down from another keyboard do not trigger
+Quick Swap Tools. Start Slideshow, Black Screen, and Laser are intentionally
+unassigned. Windows still delivers the R400's ordinary Page Up/Page Down keys to
+the foreground application. Page Up and Page Down are reserved and cannot also
+be configured as global hotkeys, preventing one R400 press from producing
+conflicting actions.
 
 ### Tartarus, macro pads, and controllers
 
