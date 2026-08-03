@@ -12,6 +12,13 @@ All notable changes to Quick Swap Tools are documented here.
   unrelated desktop entries, and roll back files, manifests, state, and KDE
   shortcuts if installation fails.
 - Exclude local Mozilla upload-tracking files from development packages.
+- Add a dependency-light Windows 10/11 x64 native-messaging host using
+  `RegisterHotKey`, a game-style Win32 shortcut configurator, and safe
+  transactional live rebinding.
+- Add a no-admin Windows development ZIP with checksum and Authenticode policy,
+  closed per-user Firefox registration, ownership-checking uninstall, and
+  native Windows CI. Public Windows release remains pending code signing and
+  real Windows/Firefox acceptance testing.
 
 ## 0.1.0 — 2026-08-02
 

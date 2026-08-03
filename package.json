@@ -7,6 +7,8 @@
   "scripts": {
     "build:native": "bash scripts/build-native.sh",
     "build:native:portable": "bash scripts/build-native-portable.sh",
+    "build:windows": "bash scripts/build-windows.sh",
+    "build:windows:bundle": "bash scripts/build-windows-bundle.sh",
     "build:extension": "rm -rf dist/unsigned && web-ext build --source-dir extension --artifacts-dir dist/unsigned --overwrite-dest",
     "build:release": "bash scripts/build-release.sh",
     "lint:extension": "web-ext lint --source-dir extension --warnings-as-errors",
@@ -14,6 +16,7 @@
     "test": "npm run build:native && node --test tests/*.test.js && python3 -m unittest discover -s tests -p 'test_*.py' -v",
     "test:js": "node --test tests/*.test.js",
     "test:python": "python3 -m unittest discover -s tests -p 'test_*.py' -v",
+    "test:windows": "npm run build:windows && python3 tests/test_windows_distribution.py -v",
     "check": "npm run lint:extension && npm run test && python3 -m py_compile native/quick_swap.py tests/test_config_app.py tests/test_native.py tests/test_native_host.py tests/test_release_installer.py tests/test_source_installer.py"
   },
   "engines": {

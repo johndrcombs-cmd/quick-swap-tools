@@ -1,26 +1,28 @@
 # Quick Swap Tools
 
-Quick Swap Tools is a separate, low-latency control path for Whatnot seller streams on KDE Plasma/Wayland and Firefox.
+Quick Swap Tools is a separate, low-latency control path for Whatnot seller streams in Firefox on KDE Plasma/Wayland and Windows.
 
 ## Controls
 
-| Shortcut | Action |
-|---|---|
-| `Super+A` | Start the next auction |
-| `Super+G` | Start the next giveaway |
+| Platform | Shortcut | Action |
+|---|---|---|
+| Linux/KDE | `Super+A` | Start the next auction |
+| Linux/KDE | `Super+G` | Start the next giveaway |
+| Windows | `Ctrl+Shift+F9` | Start the next auction |
+| Windows | `Ctrl+Shift+F10` | Start the next giveaway |
 
 The host applies only a 150 ms hardware key-bounce filter. Distinct presses are queued, while duplicate delivery of the same command ID is suppressed. The page script refuses to click when the matching control is hidden, disabled, covered, missing, or ambiguous.
 
 ## Configure controls
 
-Open **Quick Swap Tools** from KDE's application launcher. Click the auction or
+Open **Quick Swap Tools** from KDE's application launcher or the Windows Start Menu. Click the auction or
 giveaway binding, press the desired keyboard, macro-pad, or controller button,
 then click **Apply**. The configurator checks for duplicate and system-wide
 conflicts, warns before accepting potentially disruptive unmodified keys, and
 can reset the defaults.
 
-The Razer Tartarus Pro appears to Linux as a keyboard, so its keys can be
-recorded directly. KDE sees the key emitted by the device rather than the
+The Razer Tartarus Pro appears to Linux and Windows as a keyboard, so its keys can be
+recorded directly. The operating system sees the key emitted by the device rather than the
 physical label such as “Key 20.” To keep a binding specific in practice, map
 the Tartarus or controller button to an unused key such as `F13`–`F24`, then
 record that key in Quick Swap Tools. A gamepad that emits only joystick-button
@@ -28,13 +30,26 @@ events needs Input Remapper, Steam Input, or a similar keyboard mapper first.
 
 ## Why this architecture
 
-The installed native host is a 50 KB dynamically linked C++ executable. Firefox starts it once and keeps it connected through native messaging. It registers directly with KDE's `KGlobalAccel`, so a hotkey does not launch a shell, Python process, browser, or desktop automation tool:
+Firefox starts the platform-native C++ host once and keeps it connected through native messaging. It registers directly with KDE's `KGlobalAccel` on Linux or `RegisterHotKey` on Windows, so a hotkey does not launch a shell, Python process, browser, or desktop automation tool:
 
 ```text
-KGlobalAccel → native host → Firefox native messaging → Whatnot content script
+Linux:   KGlobalAccel   → native host → Firefox native messaging → Whatnot content script
+Windows: RegisterHotKey → native host → Firefox native messaging → Whatnot content script
 ```
 
 This is faster and more reliable on Wayland than coordinate clicking, `ydotool`, Firefox remote debugging, or launching a command for every keypress. Chrome would not make this path faster, so Firefox remains the target.
+
+## Windows development distribution
+
+Windows 10/11 x64 support is currently available as an **unsigned development bundle**, not a trusted public release. Build it on Linux with MinGW-w64 and the existing Mozilla-signed XPI:
+
+```bash
+pnpm run build:windows:bundle
+```
+
+The resulting `dist/windows/quick-swap-tools-*-windows-x86_64-development.zip` contains two framework-free Win32 executables, a checksum-verifying per-user PowerShell installer, an ownership-checking uninstaller, and Windows-specific instructions. Installation uses `%LOCALAPPDATA%\Programs\Quick Swap Tools` and only the exact current-user Firefox native-messaging registry key. It does not request administrator access.
+
+Unsigned executables may trigger SmartScreen. A public Windows release remains blocked on Authenticode signing and a real Windows 10/11 Firefox end-to-end test. See [`packaging/windows/README.md`](packaging/windows/README.md) for development installation details and controller limitations.
 
 ## Install a signed release
 

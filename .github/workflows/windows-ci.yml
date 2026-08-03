@@ -1,0 +1,86 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-native:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install MinGW-w64
+        shell: powershell
+        run: choco install mingw --version=16.1.0 --no-progress -y
+      - name: Build native Windows binaries
+        shell: bash
+        run: |
+          export PATH="/c/ProgramData/mingw64/mingw64/bin:$PATH"
+          CXX_WINDOWS=g++ scripts/build-windows.sh
+      - name: Parse PowerShell installers
+        shell: powershell
+        run: |
+          foreach ($Path in @("packaging\windows\install.ps1", "packaging\windows\uninstall.ps1")) {
+            $Tokens = $null
+            $Errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $Path), [ref]$Tokens, [ref]$Errors
+            )
+            if ($Errors.Count -ne 0) {
+              $Errors | Format-List | Out-String | Write-Error
+              exit 1
+            }
+          }
+      - name: Run native Windows protocol and policy tests
+        shell: powershell
+        run: |
+          $env:PATH = "C:\ProgramData\mingw64\mingw64\bin;$env:PATH"
+          $env:QST_WINDOWS_RUNTIME_TESTS = "1"
+          python tests\test_windows_distribution.py WindowsHotkeyValidationTests WindowsNativeHostTests WindowsConfiguratorTests -v
+          python tests\test_windows_distribution.py WindowsInstallerPolicyTests.test_per_user_installer_has_closed_registration_and_signing_policy WindowsInstallerPolicyTests.test_installer_uses_collision_safe_registry_and_shortcut_publication WindowsInstallerPolicyTests.test_installer_rollback_proves_published_files_and_full_shortcut WindowsInstallerPolicyTests.test_unsigned_bypass_rejects_broken_signatures_and_production_is_pinned WindowsInstallerPolicyTests.test_installer_validates_xpi_identity_and_signature_metadata WindowsInstallerPolicyTests.test_installer_and_uninstaller_reject_unsafe_roots WindowsInstallerPolicyTests.test_uninstaller_proves_registry_and_manifest_ownership -v
+      - name: Exercise per-user install and ownership-aware uninstall
+        shell: powershell
+        run: |
+          $Bundle = Join-Path $env:RUNNER_TEMP "quick-swap-tools-windows-test"
+          New-Item -ItemType Directory -Path $Bundle | Out-Null
+          Copy-Item build\windows\quick-swap-tools.exe, build\windows\quick-swap-config.exe -Destination $Bundle
+          Copy-Item packaging\windows\install.ps1, packaging\windows\uninstall.ps1 -Destination $Bundle
+          Copy-Item packaging\windows\README.md (Join-Path $Bundle "README.md")
+          Copy-Item LICENSE -Destination $Bundle
+          Copy-Item THIRD_PARTY_NOTICES.md -Destination $Bundle
+          $Xpi = Join-Path $Bundle "Quick-Swap-Tools-0.1.0-firefox.xpi"
+          Invoke-WebRequest "https://github.com/johndrcombs-cmd/quick-swap-tools/releases/download/v0.1.0/Quick-Swap-Tools-0.1.0-firefox.xpi" -OutFile $Xpi
+          $ExpectedXpiHash = "47a718aca9ef77ea71b7cab842a44064051ccd76523ae5ab94d841cbcfe55bac"
+          if ((Get-FileHash $Xpi -Algorithm SHA256).Hash.ToLowerInvariant() -ne $ExpectedXpiHash) {
+            throw "The immutable v0.1.0 XPI hash did not match"
+          }
+          $Payload = @("LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "Quick-Swap-Tools-0.1.0-firefox.xpi", "install.ps1", "quick-swap-config.exe", "quick-swap-tools.exe", "uninstall.ps1")
+          $ChecksumLines = foreach ($Name in $Payload) {
+            $Hash = (Get-FileHash (Join-Path $Bundle $Name) -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$Hash  $Name"
+          }
+          [IO.File]::WriteAllLines((Join-Path $Bundle "SHA256SUMS"), $ChecksumLines, (New-Object Text.UTF8Encoding($false)))
+
+          & (Join-Path $Bundle "install.ps1") -AllowUnsignedDevelopment
+          $InstallRoot = Join-Path $env:LOCALAPPDATA "Programs\Quick Swap Tools"
+          $RegistryPath = "HKCU:\Software\Mozilla\NativeMessagingHosts\com.onibyts.quickswap"
+          if (-not (Test-Path $InstallRoot) -or -not (Test-Path $RegistryPath)) {
+            throw "The per-user installation was not published"
+          }
+
+          $SettingsPath = "HKCU:\Software\OniByts\Quick Swap Tools"
+          New-Item $SettingsPath -Force | Out-Null
+          New-ItemProperty $SettingsPath -Name AuctionModifiers -PropertyType DWord -Value 6 -Force | Out-Null
+          New-ItemProperty $SettingsPath -Name FriendValue -PropertyType String -Value preserve-me -Force | Out-Null
+          & (Join-Path $InstallRoot "uninstall.ps1")
+          if ((Test-Path $InstallRoot) -or (Test-Path $RegistryPath)) {
+            throw "The owned installation artifacts were not removed"
+          }
+          if ((Get-ItemPropertyValue $SettingsPath -Name FriendValue) -ne "preserve-me") {
+            throw "Uninstall damaged an unrelated settings value"
+          }
+          Remove-Item $SettingsPath -Recurse -Force
