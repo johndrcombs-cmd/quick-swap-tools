@@ -41,6 +41,7 @@ class SourceInstallerTests(unittest.TestCase):
             "#!/bin/sh\nset -eu\nROOT=$(cd \"$(dirname \"$0\")/..\" && pwd)\n"
             "mkdir -p \"$ROOT/build\"\n"
             "cp \"$ROOT/host-stub\" \"$ROOT/build/quick-swap-host\"\n"
+            "cp \"$ROOT/host-stub\" \"$ROOT/build/quick-swap-config\"\n"
             "printf 'built\\n' >>\"$HOME/build.log\"\n",
         )
         self._write_executable(
@@ -71,6 +72,7 @@ class SourceInstallerTests(unittest.TestCase):
         )
         install_root = self.home / ".local/lib/quick-swap-tools"
         self.assertTrue((install_root / "quick-swap-host").is_file())
+        self.assertTrue((install_root / "quick-swap-config").is_file())
         self.assertTrue((install_root / "uninstall.sh").is_file())
         self.assertFalse((install_root / "extension/.amo-upload-uuid").exists())
         self.assertEqual(

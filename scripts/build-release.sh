@@ -66,6 +66,7 @@ PY
 rm -rf "$STAGE" "$ARCHIVE"
 mkdir -p "$STAGE"
 install -m 0755 "$ROOT/build/quick-swap-host" "$STAGE/quick-swap-host"
+install -m 0755 "$ROOT/build/quick-swap-config" "$STAGE/quick-swap-config"
 install -m 0755 "$ROOT/packaging/linux-kde/install.sh" "$STAGE/install.sh"
 install -m 0755 "$ROOT/packaging/linux-kde/uninstall.sh" "$STAGE/uninstall.sh"
 install -m 0644 "$ROOT/packaging/linux-kde/README.md" "$STAGE/README.md"
@@ -74,7 +75,7 @@ install -m 0644 "$XPI" "$STAGE/Quick-Swap-Tools-$VERSION-firefox.xpi"
 (
   cd "$STAGE"
   sha256sum \
-    quick-swap-host install.sh uninstall.sh README.md LICENSE \
+    quick-swap-host quick-swap-config install.sh uninstall.sh README.md LICENSE \
     "Quick-Swap-Tools-$VERSION-firefox.xpi" > SHA256SUMS
 )
 tar --sort=name --owner=0 --group=0 --numeric-owner \

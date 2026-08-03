@@ -69,6 +69,7 @@ if [[ -f "$HOME/.config/kglobalshortcutsrc" ]]; then
 fi
 
 install -m 0755 "$ROOT/build/quick-swap-host" "$INSTALL_ROOT/quick-swap-host"
+install -m 0755 "$ROOT/build/quick-swap-config" "$INSTALL_ROOT/quick-swap-config"
 install -m 0755 "$ROOT/scripts/uninstall.sh" "$INSTALL_ROOT/uninstall.sh"
 cp -a "$ROOT/extension" "$INSTALL_ROOT/extension"
 rm -f "$INSTALL_ROOT/extension/.amo-upload-uuid" \
@@ -115,8 +116,8 @@ cat >"$DESKTOP_ENTRY" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Quick Swap Tools
-Comment=Whatnot auction and giveaway hotkeys
-Exec=firefox about:debugging#/runtime/this-firefox
+Comment=Configure Whatnot auction and giveaway controls
+Exec="$INSTALL_ROOT/quick-swap-config"
 Icon=preferences-desktop-keyboard-shortcuts
 Terminal=false
 Categories=Utility;
@@ -128,6 +129,7 @@ trap - EXIT
 printf '\nQuick Swap Tools development build installed.\n'
 printf 'Firefox extension manifest: %s\n' "$INSTALL_ROOT/extension/manifest.json"
 printf 'Super+A: next auction | Super+G: next giveaway\n'
+printf 'Configure controls with: %s\n' "$INSTALL_ROOT/quick-swap-config"
 printf 'Load the manifest temporarily from about:debugging.\n'
 printf 'Uninstall with: %s\n' "$INSTALL_ROOT/uninstall.sh"
 printf 'For permanent installation, use the Mozilla-signed release bundle.\n'

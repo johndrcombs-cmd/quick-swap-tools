@@ -24,6 +24,7 @@ fail() {
 
 [[ "$(uname -m)" == "x86_64" ]] || fail "this bundle supports x86-64 Linux only"
 [[ -x "$BUNDLE_ROOT/quick-swap-host" ]] || fail "quick-swap-host is missing"
+[[ -x "$BUNDLE_ROOT/quick-swap-config" ]] || fail "quick-swap-config is missing"
 [[ -f "$XPI_PATH" ]] || fail "$XPI_NAME is missing"
 command -v kreadconfig6 >/dev/null || fail "KDE Plasma 6 command kreadconfig6 is required"
 command -v kwriteconfig6 >/dev/null || fail "KDE Plasma 6 command kwriteconfig6 is required"
@@ -44,9 +45,13 @@ command -v sha256sum >/dev/null || fail "sha256sum is required for integrity ver
 [[ ! -e "$DESKTOP_ENTRY" ]] || \
   fail "a desktop entry already exists at $DESKTOP_ENTRY; uninstall the prior version first"
 
-if command -v ldd >/dev/null && ldd "$BUNDLE_ROOT/quick-swap-host" 2>&1 | grep -q 'not found'; then
-  ldd "$BUNDLE_ROOT/quick-swap-host" >&2 || true
-  fail "required Qt 6 or KDE Frameworks 6 libraries are missing"
+if command -v ldd >/dev/null; then
+  for binary in quick-swap-host quick-swap-config; do
+    if ldd "$BUNDLE_ROOT/$binary" 2>&1 | grep -q 'not found'; then
+      ldd "$BUNDLE_ROOT/$binary" >&2 || true
+      fail "required Qt 6 or KDE Frameworks 6 libraries are missing"
+    fi
+  done
 fi
 
 "$BUNDLE_ROOT/quick-swap-host" --check-shortcuts || \
@@ -95,6 +100,7 @@ if [[ -f "$HOME/.config/kglobalshortcutsrc" && ! -f "$STATE_ROOT/kglobalshortcut
 fi
 
 install -m 0755 "$BUNDLE_ROOT/quick-swap-host" "$INSTALL_ROOT/quick-swap-host"
+install -m 0755 "$BUNDLE_ROOT/quick-swap-config" "$INSTALL_ROOT/quick-swap-config"
 install -m 0755 "$BUNDLE_ROOT/uninstall.sh" "$INSTALL_ROOT/uninstall.sh"
 install -m 0644 "$XPI_PATH" "$INSTALL_ROOT/$XPI_NAME"
 install -m 0644 "$BUNDLE_ROOT/LICENSE" "$INSTALL_ROOT/LICENSE"
@@ -127,8 +133,8 @@ cat >"$DESKTOP_ENTRY" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Quick Swap Tools
-Comment=Whatnot auction and giveaway hotkeys
-Exec=firefox about:addons
+Comment=Configure Whatnot auction and giveaway controls
+Exec="$INSTALL_ROOT/quick-swap-config"
 Icon=preferences-desktop-keyboard-shortcuts
 Terminal=false
 Categories=Utility;
@@ -139,6 +145,7 @@ trap - EXIT
 
 printf '\nQuick Swap Tools native host installed.\n'
 printf 'Super+A: next auction | Super+G: next giveaway\n'
+printf 'Configure controls with: %s\n' "$INSTALL_ROOT/quick-swap-config"
 printf 'Now open this signed Firefox extension and click Add:\n  %s\n' \
   "$INSTALL_ROOT/$XPI_NAME"
 printf 'Uninstall with: %s\n' "$INSTALL_ROOT/uninstall.sh"

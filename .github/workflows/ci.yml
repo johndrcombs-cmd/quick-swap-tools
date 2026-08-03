@@ -16,7 +16,7 @@ jobs:
       - name: Install build dependencies
         run: >-
           pacman -Syu --noconfirm
-          git gcc pkgconf qt6-base kglobalaccel
+          git gcc pkgconf qt6-base kglobalaccel kxmlgui
           nodejs npm pnpm python unzip
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install JavaScript dependencies

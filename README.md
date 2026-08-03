@@ -11,6 +11,21 @@ Quick Swap Tools is a separate, low-latency control path for Whatnot seller stre
 
 The host applies only a 150 ms hardware key-bounce filter. Distinct presses are queued, while duplicate delivery of the same command ID is suppressed. The page script refuses to click when the matching control is hidden, disabled, covered, missing, or ambiguous.
 
+## Configure controls
+
+Open **Quick Swap Tools** from KDE's application launcher. Click the auction or
+giveaway binding, press the desired keyboard, macro-pad, or controller button,
+then click **Apply**. The configurator checks for duplicate and system-wide
+conflicts, warns before accepting potentially disruptive unmodified keys, and
+can reset the defaults.
+
+The Razer Tartarus Pro appears to Linux as a keyboard, so its keys can be
+recorded directly. KDE sees the key emitted by the device rather than the
+physical label such as “Key 20.” To keep a binding specific in practice, map
+the Tartarus or controller button to an unused key such as `F13`–`F24`, then
+record that key in Quick Swap Tools. A gamepad that emits only joystick-button
+events needs Input Remapper, Steam Input, or a similar keyboard mapper first.
+
 ## Why this architecture
 
 The installed native host is a 50 KB dynamically linked C++ executable. Firefox starts it once and keeps it connected through native messaging. It registers directly with KDE's `KGlobalAccel`, so a hotkey does not launch a shell, Python process, browser, or desktop automation tool:
@@ -41,7 +56,8 @@ Mozilla-signed XPI. Open that XPI in Firefox and click **Add**.
 Requirements:
 
 - x86-64 Linux;
-- KDE Plasma 6 with Qt 6 and KDE Frameworks 6 GlobalAccel;
+- KDE Plasma 6 with glibc 2.34+, Qt 6.11+, and KDE Frameworks 6.12+
+  GlobalAccel and XmlGui runtime libraries;
 - Firefox 140 or newer;
 - Python 3 for the one-time native-messaging manifest setup.
 

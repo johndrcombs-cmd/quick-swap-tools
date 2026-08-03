@@ -1,7 +1,7 @@
 FROM archlinux:base
 
 RUN pacman -Syu --noconfirm --needed \
-      gcc pkgconf qt6-base kglobalaccel \
+      gcc pkgconf qt6-base kglobalaccel kxmlgui \
     && pacman -Scc --noconfirm
 
 WORKDIR /src

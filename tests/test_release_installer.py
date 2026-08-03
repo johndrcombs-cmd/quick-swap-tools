@@ -36,6 +36,10 @@ class ReleaseInstallerTests(unittest.TestCase):
             "if [ \"${QST_FAIL_REGISTER:-0}\" = 1 ] && [ \"${1:-}\" = --register-only ]; then exit 1; fi\n"
             "exit 0\n",
         )
+        self._write_executable(
+            self.bundle / "quick-swap-config",
+            "#!/bin/sh\nprintf 'configurator\\n'\n",
+        )
         with zipfile.ZipFile(
             self.bundle / "Quick-Swap-Tools-9.9.9-firefox.xpi", "w"
         ) as archive:
@@ -50,6 +54,7 @@ class ReleaseInstallerTests(unittest.TestCase):
         )
         checksum_names = [
             "quick-swap-host",
+            "quick-swap-config",
             "install.sh",
             "uninstall.sh",
             "README.md",
@@ -78,6 +83,7 @@ class ReleaseInstallerTests(unittest.TestCase):
 
         install_root = self.home / ".local/lib/quick-swap-tools"
         self.assertTrue((install_root / "quick-swap-host").is_file())
+        self.assertTrue((install_root / "quick-swap-config").is_file())
         self.assertTrue((install_root / "uninstall.sh").is_file())
         self.assertTrue(
             (install_root / "Quick-Swap-Tools-9.9.9-firefox.xpi").is_file()

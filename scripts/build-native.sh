@@ -14,4 +14,19 @@ g++ -std=c++20 -O2 -fPIC -no-pie -march=x86-64 -mtune=generic \
   -I/usr/include/KF6/KGlobalAccel \
   -lKF6GlobalAccel
 
-printf 'Built %s\n' "$ROOT/build/quick-swap-host"
+# pkg-config emits one shell-safe compiler/linker argument per whitespace token.
+# shellcheck disable=SC2046
+g++ -std=c++20 -O2 -fPIC -no-pie -march=x86-64 -mtune=generic \
+  -Wall -Wextra -Wpedantic \
+  "$ROOT/native/quick-swap-config.cpp" \
+  -o "$ROOT/build/quick-swap-config" \
+  $(pkg-config --cflags --libs Qt6Core Qt6Gui Qt6Widgets Qt6DBus) \
+  -I/usr/include/KF6/KXmlGui \
+  -I/usr/include/KF6/KGuiAddons \
+  -I/usr/include/KF6/KGlobalAccel \
+  -lKF6XmlGui \
+  -lKF6GuiAddons \
+  -lKF6GlobalAccel
+
+printf 'Built %s and %s\n' \
+  "$ROOT/build/quick-swap-host" "$ROOT/build/quick-swap-config"

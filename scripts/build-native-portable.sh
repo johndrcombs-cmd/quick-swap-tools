@@ -19,8 +19,10 @@ docker run --rm \
   "$IMAGE" \
   bash scripts/build-native.sh
 
-if readelf -n "$ROOT/build/quick-swap-host" | grep -q 'ISA needed:.*x86-64-v3'; then
-  printf 'Portable build unexpectedly requires x86-64-v3.\n' >&2
-  exit 1
-fi
-printf 'Verified portable x86-64 native host.\n'
+for binary in quick-swap-host quick-swap-config; do
+  if readelf -n "$ROOT/build/$binary" | grep -q 'ISA needed:.*x86-64-v3'; then
+    printf 'Portable build of %s unexpectedly requires x86-64-v3.\n' "$binary" >&2
+    exit 1
+  fi
+done
+printf 'Verified portable x86-64 native binaries.\n'

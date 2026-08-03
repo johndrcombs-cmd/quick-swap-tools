@@ -4,6 +4,10 @@ All notable changes to Quick Swap Tools are documented here.
 
 ## Unreleased
 
+- Add a game-style KDE control configurator for keyboards, macro pads, and
+  controller buttons mapped to keyboard keys.
+- Preserve user-selected global shortcuts through KDE `KGlobalAccel` and warn
+  when an unmodified global key could also trigger from the main keyboard.
 - Make the source-development installer refuse existing installations and
   unrelated desktop entries, and roll back files, manifests, state, and KDE
   shortcuts if installation fails.
