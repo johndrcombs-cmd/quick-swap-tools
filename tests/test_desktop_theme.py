@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -44,6 +45,20 @@ class DesktopDarkThemeSourceTests(unittest.TestCase):
         self.assertIn("RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW", source)
         self.assertIn("SetBkColor(dc, kWindowBackground)", source)
         self.assertIn("reinterpret_cast<LRESULT>(windowBackgroundBrush_)", source)
+
+    def test_windows_primary_action_has_a_distinct_keyboard_focus_ring(self):
+        source = WINDOWS_CONFIG.read_text()
+
+        accent = re.search(r"kAccentColor = RGB\(([^)]+)\)", source)
+        focus = re.search(r"kFocusRingColor = RGB\(([^)]+)\)", source)
+        self.assertIsNotNone(accent)
+        self.assertIsNotNone(focus)
+        self.assertNotEqual(accent.group(1), focus.group(1))
+        self.assertIn(
+            "COLORREF border = primary ? kAccentColor : kBorderColor;", source
+        )
+        self.assertIn("border = kFocusRingColor;", source)
+        self.assertIn("focused ? 2 : 1", source)
 
 
 if __name__ == "__main__":

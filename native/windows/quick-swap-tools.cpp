@@ -811,6 +811,7 @@ private:
     static constexpr COLORREF kBorderColor = RGB(48, 54, 61);
     static constexpr COLORREF kAccentColor = RGB(31, 111, 235);
     static constexpr COLORREF kAccentHoverColor = RGB(56, 139, 253);
+    static constexpr COLORREF kFocusRingColor = RGB(191, 219, 254);
     static constexpr COLORREF kPrimaryText = RGB(230, 237, 243);
     static constexpr COLORREF kSecondaryText = RGB(139, 148, 158);
 
@@ -1004,9 +1005,10 @@ private:
         const RECT &rectangle,
         COLORREF fill,
         COLORREF border,
-        int radius) {
+        int radius,
+        int borderWidth = 1) {
         HBRUSH brush = CreateSolidBrush(fill);
-        HPEN pen = CreatePen(PS_SOLID, 1, border);
+        HPEN pen = CreatePen(PS_SOLID, borderWidth, border);
         HGDIOBJ oldBrush = SelectObject(dc, brush);
         HGDIOBJ oldPen = SelectObject(dc, pen);
         RoundRect(
@@ -1036,16 +1038,16 @@ private:
         const bool pressed = (item.itemState & ODS_SELECTED) != 0;
         const bool focused = (item.itemState & ODS_FOCUS) != 0;
         COLORREF fill = primary ? kAccentColor : kInputBackground;
-        COLORREF border = primary ? kAccentHoverColor : kBorderColor;
+        COLORREF border = primary ? kAccentColor : kBorderColor;
         if (focused) {
-            border = kAccentHoverColor;
+            border = kFocusRingColor;
         }
         if (pressed) {
             fill = primary ? RGB(17, 88, 199) : kSurfaceBackground;
         }
         RECT buttonRect = item.rcItem;
         InflateRect(&buttonRect, -1, -1);
-        drawRoundedPanel(item.hDC, buttonRect, fill, border, 12);
+        drawRoundedPanel(item.hDC, buttonRect, fill, border, 12, focused ? 2 : 1);
 
         wchar_t text[128]{};
         GetWindowTextW(item.hwndItem, text, static_cast<int>(std::size(text)));
