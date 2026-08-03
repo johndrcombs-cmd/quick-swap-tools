@@ -1,0 +1,7 @@
+FROM archlinux:base
+
+RUN pacman -Syu --noconfirm --needed \
+      gcc pkgconf qt6-base kglobalaccel \
+    && pacman -Scc --noconfirm
+
+WORKDIR /src
