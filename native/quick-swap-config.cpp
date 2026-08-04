@@ -172,6 +172,14 @@ bool isRiskyUnmodifiedKey(const QKeySequence &sequence) {
     return key < Qt::Key_F13 || key > Qt::Key_F24;
 }
 
+bool isLogitechR400ReservedKey(const QKeySequence &sequence) {
+    if (sequence.count() != 1) {
+        return false;
+    }
+    const Qt::Key key = sequence[0].key();
+    return key == Qt::Key_PageUp || key == Qt::Key_PageDown;
+}
+
 QJsonObject validateShortcuts(
     const QKeySequence &auction, const QKeySequence &giveaway) {
     QJsonObject result;
@@ -187,6 +195,15 @@ QJsonObject validateShortcuts(
         result.insert(
             QStringLiteral("error"),
             QStringLiteral("auction and giveaway shortcuts must differ"));
+        result.insert(QStringLiteral("warnings"), warnings);
+        return result;
+    }
+    if (isLogitechR400ReservedKey(auction)
+        || isLogitechR400ReservedKey(giveaway)) {
+        result.insert(QStringLiteral("valid"), false);
+        result.insert(
+            QStringLiteral("error"),
+            QStringLiteral("Page Up and Page Down are reserved for the Logitech R400"));
         result.insert(QStringLiteral("warnings"), warnings);
         return result;
     }
@@ -560,9 +577,10 @@ int runGui(int argc, char **argv) {
     deviceTitle->setObjectName(QStringLiteral("sectionTitle"));
     deviceLayout->addWidget(deviceTitle);
     auto *deviceNote = new QLabel(QStringLiteral(
-        "Keyboard-style devices such as the Razer Tartarus work directly. For a "
-        "gamepad, map its button to an unused key such as F13–F24. Normal letters "
-        "also fire from your main keyboard."));
+        "The Logitech R400 works directly: Previous starts Auction and Next starts "
+        "Giveaway. Keyboard-style devices such as the Razer Tartarus also work; "
+        "map their buttons to unused keys such as F13–F24. Page Up and Page Down "
+        "are reserved for the R400."));
     deviceNote->setObjectName(QStringLiteral("muted"));
     deviceNote->setWordWrap(true);
     deviceLayout->addWidget(deviceNote);

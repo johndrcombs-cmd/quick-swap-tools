@@ -43,6 +43,27 @@ Open that XPI in Firefox and click **Add**. Quick Swap Tools then remains instal
 
 - `Super+A`: switch to Auctions and start the next auction.
 - `Super+G`: switch to Giveaways and start the next giveaway.
+- Logitech R400 Previous: switch to Auctions and start the next auction.
+- Logitech R400 Next: switch to Giveaways and start the next giveaway.
+
+The R400 profile matches only the `046d:c538` Logitech USB Receiver. It does
+not grab or suppress the device, so Page Up/Page Down continue to reach the
+foreground application. Page Up and Page Down cannot also be selected as KDE
+global shortcuts. The host rediscovers the receiver after a hot unplug.
+
+Check whether your desktop user can read the receiver:
+
+```bash
+test -r /dev/input/by-id/usb-Logitech_USB_Receiver-event-if00
+```
+
+If that fails, configure a device-specific `uaccess` udev rule through your
+distribution's administrator workflow. Do not grant broad access to all input
+devices:
+
+```text
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="c538", TAG+="uaccess"
+```
 
 ### Configure a keyboard, macro pad, or controller
 

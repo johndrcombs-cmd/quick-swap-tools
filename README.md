@@ -8,6 +8,8 @@ Quick Swap Tools is a separate, low-latency control path for Whatnot seller stre
 |---|---|---|
 | Linux/KDE | `Super+A` | Start the next auction |
 | Linux/KDE | `Super+G` | Start the next giveaway |
+| Linux + Logitech R400 | Previous | Start the next auction |
+| Linux + Logitech R400 | Next | Start the next giveaway |
 | Windows | `Ctrl+Shift+F9` | Start the next auction |
 | Windows | `Ctrl+Shift+F10` | Start the next giveaway |
 | Windows + Logitech R400 | Previous | Start the next auction |
@@ -42,6 +44,32 @@ the Start Slideshow, Black Screen, and Laser buttons are not assigned. The R400'
 normal Page Up/Page Down keystrokes still reach the foreground application.
 Page Up and Page Down are reserved and cannot also be configured as global
 hotkeys, preventing one R400 press from producing conflicting actions.
+
+On Linux, the native host recognizes only the matching USB input device
+(`046d:c538`, `Logitech USB Receiver`). It reads press events without grabbing
+the device, so the R400's normal Page Up/Page Down events still reach the
+foreground application. An owner-only runtime lock ensures that only one
+Firefox native-host process handles a physical press, while another profile can
+take over after the owner exits. Hot-unplugged receivers are rediscovered after
+they reconnect. Page Up and Page Down are reserved from KDE shortcut
+configuration for the same conflict-safety reason as on Windows.
+
+The Linux host needs read access to the R400 event device. Check it with:
+
+```bash
+test -r /dev/input/by-id/usb-Logitech_USB_Receiver-event-if00 \
+  && echo "R400 access ready" \
+  || echo "R400 access needs a device-specific udev rule"
+```
+
+Do not grant broad access to every keyboard event device. If access is denied,
+install a device-specific `uaccess` rule through your distribution's normal
+administrator workflow, reconnect the receiver, and sign out/in if your login
+manager does not refresh the ACL immediately:
+
+```text
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="c538", TAG+="uaccess"
+```
 
 ## Why this architecture
 

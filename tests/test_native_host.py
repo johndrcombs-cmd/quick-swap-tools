@@ -13,11 +13,82 @@ BINARY = ROOT / "build" / "quick-swap-host"
 
 
 class NativeHostIntegrationTests(unittest.TestCase):
+    def test_logitech_r400_profile_is_device_filtered_and_press_only(self):
+        env = {
+            **os.environ,
+            "QT_QPA_PLATFORM": "offscreen",
+            "QUICK_SWAP_NO_SHORTCUTS": "1",
+        }
+        result = subprocess.run(
+            [str(BINARY), "--r400-profile-self-test"],
+            capture_output=True,
+            check=False,
+            env=env,
+            text=True,
+            timeout=2,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        profile = json.loads(result.stdout)
+        self.assertTrue(profile["matchedDevice"])
+        self.assertTrue(profile["kernelNameMatched"])
+        self.assertTrue(profile["interfaceMatched"])
+        self.assertTrue(profile["otherInterfaceIgnored"])
+        self.assertTrue(profile["capabilitiesMatched"])
+        self.assertEqual(profile["previous"], "auction")
+        self.assertEqual(profile["next"], "giveaway")
+        self.assertTrue(profile["otherDeviceIgnored"])
+        self.assertTrue(profile["otherKeyIgnored"])
+        self.assertTrue(profile["releaseIgnored"])
+        self.assertTrue(profile["repeatIgnored"])
+
+    def test_logitech_r400_owner_is_exclusive_and_recoverable(self):
+        env = {
+            **os.environ,
+            "QT_QPA_PLATFORM": "offscreen",
+            "QUICK_SWAP_NO_SHORTCUTS": "1",
+        }
+        result = subprocess.run(
+            [str(BINARY), "--r400-owner-self-test"],
+            capture_output=True,
+            check=False,
+            env=env,
+            text=True,
+            timeout=2,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        ownership = json.loads(result.stdout)
+        self.assertTrue(ownership["exclusive"])
+        self.assertTrue(ownership["takeover"])
+        self.assertTrue(ownership["ownerOnly"])
+
+    def test_logitech_r400_stream_emits_only_press_actions(self):
+        env = {
+            **os.environ,
+            "QT_QPA_PLATFORM": "offscreen",
+            "QUICK_SWAP_NO_SHORTCUTS": "1",
+        }
+        result = subprocess.run(
+            [str(BINARY), "--r400-stream-self-test"],
+            capture_output=True,
+            check=False,
+            env=env,
+            text=True,
+            timeout=2,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        stream = json.loads(result.stdout)
+        self.assertEqual(stream["actions"], ["auction", "giveaway"])
+        self.assertTrue(stream["completeFrames"])
+
     def test_hello_returns_ready_frame(self):
         env = {
             **os.environ,
             "QT_QPA_PLATFORM": "offscreen",
             "QUICK_SWAP_NO_SHORTCUTS": "1",
+            "QUICK_SWAP_NO_R400": "1",
         }
         process = subprocess.Popen(
             [str(BINARY)],
@@ -48,6 +119,7 @@ class NativeHostIntegrationTests(unittest.TestCase):
         self.assertEqual(message["type"], "ready")
         self.assertFalse(message["auctionShortcut"])
         self.assertFalse(message["giveawayShortcut"])
+        self.assertFalse(message["logitechR400"])
 
     def test_persisted_result_omits_private_url_and_is_owner_only(self):
         with tempfile.TemporaryDirectory() as state_home:
@@ -55,6 +127,7 @@ class NativeHostIntegrationTests(unittest.TestCase):
                 **os.environ,
                 "QT_QPA_PLATFORM": "offscreen",
                 "QUICK_SWAP_NO_SHORTCUTS": "1",
+                "QUICK_SWAP_NO_R400": "1",
                 "XDG_STATE_HOME": state_home,
             }
             process = subprocess.Popen(

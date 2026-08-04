@@ -62,6 +62,18 @@ class ShortcutConfigCliTests(unittest.TestCase):
             payload["warnings"], ["auction shortcut is an unmodified global key"]
         )
 
+    def test_r400_navigation_keys_are_reserved_from_global_shortcuts(self):
+        for reserved in ("PgUp", "PgDown"):
+            with self.subTest(reserved=reserved):
+                result = self.run_validate(reserved, "F21")
+                self.assertNotEqual(result.returncode, 0)
+                payload = json.loads(result.stdout)
+                self.assertFalse(payload["valid"])
+                self.assertEqual(
+                    payload["error"],
+                    "Page Up and Page Down are reserved for the Logitech R400",
+                )
+
     def test_empty_shortcut_is_rejected(self):
         result = self.run_validate("none", "F21")
         self.assertNotEqual(result.returncode, 0)
